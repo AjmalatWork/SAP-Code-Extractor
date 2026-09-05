@@ -103,6 +103,8 @@ CLASS lcl_alv_event_handler DEFINITION.
   PUBLIC SECTION.
     METHODS on_f4 FOR EVENT onf4 OF cl_gui_alv_grid
       IMPORTING e_fieldname es_row_no er_event_data.
+    METHODS on_data_changed FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
 ENDCLASS.
 
 " GO_ALV_EVENTS must be declared after the class it's typed as - moved
@@ -177,6 +179,27 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
     go_alv_grid->refresh_table_display( is_stable = ls_stable ).
 
     er_event_data->m_event_handled = abap_true.
+  ENDMETHOD.
+
+  METHOD on_data_changed.
+    " Clear the red highlight the moment a previously-flagged cell's
+    " value changes - re-validation of whether it's now actually valid
+    " still only happens on EXEC, this just removes the stale marker.
+    FIELD-SYMBOLS <fs_row> TYPE ts_multi_obj.
+    DATA ls_stable TYPE lvc_s_stbl.
+
+    LOOP AT er_data_changed->mt_good_cells INTO DATA(ls_mod) WHERE fieldname = 'CMP_VERSNO'.
+      READ TABLE gt_multi_obj ASSIGNING <fs_row> INDEX ls_mod-row_id.
+      IF sy-subrc = 0.
+        CLEAR <fs_row>-cellcolor.
+      ENDIF.
+    ENDLOOP.
+
+    IF go_alv_grid IS BOUND.
+      ls_stable-row = abap_true.
+      ls_stable-col = abap_true.
+      go_alv_grid->refresh_table_display( is_stable = ls_stable ).
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1531,6 +1554,7 @@ FORM create_multi_tr_alv.
 
   CREATE OBJECT go_alv_events.
   SET HANDLER go_alv_events->on_f4 FOR go_alv_grid.
+  SET HANDLER go_alv_events->on_data_changed FOR go_alv_grid.
 
   PERFORM build_multi_tr_fieldcat CHANGING lt_fieldcat.
 
@@ -1548,6 +1572,10 @@ FORM create_multi_tr_alv.
   " the field also has to be explicitly registered here.
   go_alv_grid->register_f4_for_fields(
     it_f4 = VALUE lvc_t_f4( ( fieldname = 'CMP_VERSNO' register = abap_true ) ) ).
+
+  " Needed so DATA_CHANGED actually fires when a cell's value changes
+  " (used to clear a stale red highlight as soon as the user edits it).
+  go_alv_grid->register_edit_event( cl_gui_alv_grid=>mc_evt_modified ).
 ENDFORM.
 
 *&---------------------------------------------------------------------*
