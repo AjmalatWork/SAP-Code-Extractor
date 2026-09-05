@@ -84,7 +84,7 @@ DATA: gt_e071        TYPE tt_e071,
       gv_meth_dummy  TYPE seomtdname,
       gv_tr_dummy    TYPE trkorr.
 
-" Multi-TR ALV review screen (0100) state.
+" Multi-TR ALV review screen (9000) state.
 DATA: gt_multi_obj   TYPE tt_multi_obj,
       gt_entered_trs TYPE STANDARD TABLE OF e070-trkorr WITH EMPTY KEY,
       go_container   TYPE REF TO cl_gui_custom_container,
@@ -1158,7 +1158,7 @@ ENDFORM.
 *&      Form  RUN_MULTI_TR_FLOW
 *&---------------------------------------------------------------------*
 *       Entry point for TR mode: build the union object list across all
-*       entered TRs, show it on the ALV review screen (0100), then
+*       entered TRs, show it on the ALV review screen (9000), then
 *       process only the checked rows once the user leaves the screen.
 *&---------------------------------------------------------------------*
 FORM run_multi_tr_flow.
@@ -1173,7 +1173,7 @@ FORM run_multi_tr_flow.
 
   PERFORM determine_multi_output_path.
 
-  CALL SCREEN 0100.
+  CALL SCREEN 9000.
 
   PERFORM download_output_file.
 ENDFORM.
@@ -1473,9 +1473,9 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  CREATE_MULTI_TR_ALV
 *&---------------------------------------------------------------------*
-*       Builds the ALV Grid on screen 0100's custom container (name
+*       Builds the ALV Grid on screen 9000's custom container (name
 *       'ALV_CONTAINER' - must be created in SE51). Called once, from
-*       MODULE STATUS_0100 OUTPUT.
+*       MODULE STATUS_9000 OUTPUT.
 *&---------------------------------------------------------------------*
 FORM create_multi_tr_alv.
   DATA ls_layout TYPE lvc_s_layo.
@@ -1547,24 +1547,24 @@ FORM process_checked_multi_objects.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*& Screen 0100 PBO/PAI
+*& Screen 9000 PBO/PAI
 *&---------------------------------------------------------------------*
-*       Screen 0100 itself (a Custom Control named 'ALV_CONTAINER', and
-*       a GUI status 'STATUS_0100' with function codes EXEC/BACK/EXIT/
+*       Screen 9000 itself (a Custom Control named 'ALV_CONTAINER', and
+*       a GUI status 'STATUS_9000' with function codes EXEC/BACK/EXIT/
 *       CANC) must be created manually in SE51/SE41 - see delivery notes.
-*       Flow logic needed on screen 0100:
-*         PBO: MODULE status_0100.
-*         PAI: MODULE user_command_0100.
+*       Flow logic needed on screen 9000:
+*         PBO: MODULE status_9000.
+*         PAI: MODULE user_command_9000.
 *&---------------------------------------------------------------------*
-MODULE status_0100 OUTPUT.
-  SET PF-STATUS 'STATUS_0100'.
+MODULE status_9000 OUTPUT.
+  SET PF-STATUS 'STATUS_9000'.
 
   IF go_container IS NOT BOUND.
     PERFORM create_multi_tr_alv.
   ENDIF.
 ENDMODULE.
 
-MODULE user_command_0100 INPUT.
+MODULE user_command_9000 INPUT.
   DATA lv_ok_code TYPE sy-ucomm.
 
   lv_ok_code = sy-ucomm.
