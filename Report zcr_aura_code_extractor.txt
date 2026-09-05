@@ -177,7 +177,7 @@ PARAMETERS: rb_tr   RADIOBUTTON GROUP grp1 DEFAULT 'X' USER-COMMAND ucomm,
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
-SELECT-OPTIONS: so_tr FOR gv_tr_dummy MODIF ID tr.
+SELECT-OPTIONS: so_tr FOR gv_tr_dummy MODIF ID tr NO INTERVALS.
 
 PARAMETERS: p_prog TYPE sy-repid   MODIF ID prg,
             p_clas TYPE seoclsname MODIF ID cls,
@@ -1199,9 +1199,10 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  RESOLVE_ENTERED_TRS
 *&---------------------------------------------------------------------*
-*       Expands SO_TR (which may contain ranges) into the concrete list
-*       of TR numbers that actually exist, used for both TR-list display
-*       and "most recent TR" comparisons.
+*       Validates SO_TR's entries (NO INTERVALS - individual TR values
+*       only, no ranges) against E070 into the concrete list of TR
+*       numbers that actually exist, used for both TR-list display and
+*       "most recent TR" comparisons.
 *&---------------------------------------------------------------------*
 FORM resolve_entered_trs.
   CLEAR: gt_entered_trs, gv_error.
