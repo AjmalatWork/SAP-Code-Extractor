@@ -256,13 +256,19 @@ START-OF-SELECTION.
 *       contained FORM so new extraction sources / output formats can
 *       be plugged in without touching the others.
 *       TR mode always routes through the multi-TR ALV review screen
-*       (RUN_MULTI_TR_FLOW); Program/Class/Function modes are unchanged.
+*       (RUN_MULTI_TR_FLOW). A whole class (no specific method chosen)
+*       routes through the same screen via RUN_CLASS_ALV_FLOW, listing
+*       its section includes and methods for the user to pick from.
+*       Program/Function modes, and Class mode with specific methods
+*       already chosen, are unchanged.
 *&---------------------------------------------------------------------*
 FORM main.
   PERFORM determine_extraction_method.
 
   IF rb_tr = 'X'.
     PERFORM run_multi_tr_flow.
+  ELSEIF rb_clas = 'X' AND s_meth IS INITIAL.
+    PERFORM run_class_alv_flow.
   ELSE.
     PERFORM determine_output_path.
 
@@ -1240,6 +1246,67 @@ FORM run_multi_tr_flow.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
+*&      Form  RUN_CLASS_ALV_FLOW
+*&---------------------------------------------------------------------*
+*       Entry point for Class mode when no specific method was chosen
+*       (whole class): builds the class's includes/methods, shows them
+*       on the SAME ALV review screen (9000) used for TR mode, then
+*       processes only the checked rows once the user presses Execute.
+*       Back/Exit/Cancel abandon the run entirely, same as TR mode.
+*       Class mode WITH specific methods chosen skips this screen
+*       entirely (see MAIN) - there's nothing to pick from in that case.
+*&---------------------------------------------------------------------*
+FORM run_class_alv_flow.
+  PERFORM build_class_object_list.
+  CHECK gv_error = abap_false.
+
+  PERFORM determine_output_path.
+
+  CLEAR gv_multi_cancelled.
+  CALL SCREEN 9000.
+
+  CHECK gv_multi_cancelled = abap_false.
+  PERFORM download_output_file.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_CLASS_OBJECT_LIST
+*&---------------------------------------------------------------------*
+*       Reuses BUILD_OBJECT_LIST (-> BUILD_OBJECT_LIST_FROM_CLASS) and
+*       ADD_CLASS_METHODS exactly as the non-ALV Class flow does, then
+*       converts the resulting GT_E071 rows into GT_MULTI_OBJ rows for
+*       the ALV. The bare CLAS entry itself is skipped - it's the class
+*       object, not one of its includes; only the definition/public/
+*       protected/private section includes and the individual methods
+*       are shown as checkable rows. ENRICH_MULTI_OBJECTS (shared with
+*       TR mode) fills in each row's current/compare-against version.
+*&---------------------------------------------------------------------*
+FORM build_class_object_list.
+  CLEAR gt_multi_obj.
+
+  PERFORM build_object_list.
+  CHECK gv_error = abap_false.
+
+  PERFORM add_class_methods.
+
+  LOOP AT gt_e071 INTO DATA(ls_e071) WHERE object <> 'CLAS'.
+    APPEND VALUE #( checked     = abap_true
+                     pgmid       = ls_e071-pgmid
+                     object      = ls_e071-object
+                     obj_name    = ls_e071-obj_name
+                     obj_display = |{ ls_e071-obj_name } { ls_e071-object }| ) TO gt_multi_obj.
+  ENDLOOP.
+
+  IF gt_multi_obj IS INITIAL.
+    MESSAGE 'No includes found for this class.' TYPE 'S' DISPLAY LIKE 'E'.
+    gv_error = abap_true.
+    RETURN.
+  ENDIF.
+
+  PERFORM enrich_multi_objects.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *&      Form  VALIDATE_MULTI_TR_INPUT
 *&---------------------------------------------------------------------*
 FORM validate_multi_tr_input.
@@ -1491,8 +1558,12 @@ FORM enrich_multi_objects.
 
     IF lv_skip = abap_true.
       <fs_multi>-cur_display = 'No version history found'.
-    ELSE.
+    ELSEIF <fs_multi>-most_recent_tr IS NOT INITIAL.
+      " TR mode: MOST_RECENT_TR is populated.
       <fs_multi>-cur_display = |Version { <fs_multi>-cur_versno } (TR: { <fs_multi>-most_recent_tr })|.
+    ELSE.
+      " Class mode: no TR context for these rows.
+      <fs_multi>-cur_display = |Version { <fs_multi>-cur_versno }|.
     ENDIF.
   ENDLOOP.
 ENDFORM.
