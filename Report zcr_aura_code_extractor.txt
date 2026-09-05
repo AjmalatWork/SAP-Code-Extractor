@@ -207,26 +207,23 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD on_toolbar.
-    " TEMP DIAGNOSTIC - '&XXL' (Export) turned out wrong, so show every
-    " real button's FUNCTION/TEXT instead of guessing again. Remove this
-    " CL_DEMO_OUTPUT call and uncomment the keep-list below once the
-    " correct Export function code is confirmed.
-    cl_demo_output=>display( e_object->mt_toolbar ).
+    " Keep-list approach: delete every standard toolbar button except
+    " Sort Ascending/Descending and Find. Deleting the current row (no
+    " INDEX) inside a plain LOOP is the standard, safe idiom for this -
+    " ABAP's LOOP AT adjusts for it correctly.
+    DATA ls_toolbar TYPE stb_button.
 
-*    DATA ls_toolbar TYPE stb_button.
-*
-*    LOOP AT e_object->mt_toolbar INTO ls_toolbar.
-*      CASE ls_toolbar-function.
-*        WHEN cl_gui_alv_grid=>mc_fc_sort_asc
-*          OR cl_gui_alv_grid=>mc_fc_sort_dsc
-*          OR cl_gui_alv_grid=>mc_fc_find
-*          OR cl_gui_alv_grid=>mc_fc_find_more
-*          OR '&XXL'.
-*          " keep
-*        WHEN OTHERS.
-*          DELETE e_object->mt_toolbar.
-*      ENDCASE.
-*    ENDLOOP.
+    LOOP AT e_object->mt_toolbar INTO ls_toolbar.
+      CASE ls_toolbar-function.
+        WHEN cl_gui_alv_grid=>mc_fc_sort_asc
+          OR cl_gui_alv_grid=>mc_fc_sort_dsc
+          OR cl_gui_alv_grid=>mc_fc_find
+          OR cl_gui_alv_grid=>mc_fc_find_more.
+          " keep
+        WHEN OTHERS.
+          DELETE e_object->mt_toolbar.
+      ENDCASE.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
