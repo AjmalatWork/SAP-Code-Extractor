@@ -364,11 +364,18 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  DETERMINE_MULTI_OUTPUT_PATH
 *&---------------------------------------------------------------------*
-*       TR mode only: CODE_EXTRACT_MULTI_TO<n>_<METHOD>.TXT, where <n>
-*       is the number of TRs actually entered (resolved so_tr matches).
+*       TR mode: with exactly one TR entered, keeps the original
+*       single-TR naming (CODE_EXTRACT_<TR>_<METHOD>.TXT) unchanged;
+*       with more than one, uses CODE_EXTRACT_MULTI_TO<n>_<METHOD>.TXT,
+*       where <n> is the number of TRs actually entered (resolved so_tr
+*       matches).
 *&---------------------------------------------------------------------*
 FORM determine_multi_output_path.
-  gv_filename = |CODE_EXTRACT_MULTI_TO{ lines( gt_entered_trs ) }_{ gv_extr_method }.TXT|.
+  IF lines( gt_entered_trs ) = 1.
+    gv_filename = |CODE_EXTRACT_{ gt_entered_trs[ 1 ] }_{ gv_extr_method }.TXT|.
+  ELSE.
+    gv_filename = |CODE_EXTRACT_MULTI_TO{ lines( gt_entered_trs ) }_{ gv_extr_method }.TXT|.
+  ENDIF.
   PERFORM build_full_path.
 ENDFORM.
 
