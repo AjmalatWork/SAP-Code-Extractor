@@ -111,7 +111,7 @@ FORM main.
   PERFORM build_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM add_class_methods_to_object_list.
+  PERFORM add_class_methods.
 
   PERFORM process_all_objects.
 
@@ -408,13 +408,13 @@ FORM build_object_list_from_func.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  ADD_CLASS_METHODS_TO_OBJECT_LIST
+*&      Form  ADD_CLASS_METHODS
 *&---------------------------------------------------------------------*
 *       For every CLAS entry already in the object list (irrespective
 *       of where it came from - TR, PROG or CLAS input), also extract
 *       and list all of its methods.
 *&---------------------------------------------------------------------*
-FORM add_class_methods_to_object_list.
+FORM add_class_methods.
   LOOP AT gt_e071 ASSIGNING FIELD-SYMBOL(<fs_class>) WHERE object = 'CLAS'.
     APPEND VALUE #( sign = 'I' option = 'EQ' low = <fs_class>-obj_name ) TO gr_class_name.
   ENDLOOP.
