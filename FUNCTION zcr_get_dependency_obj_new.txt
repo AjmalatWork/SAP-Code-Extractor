@@ -1,18 +1,20 @@
-FUNCTION zcr_get_dependency_obj.
+FUNCTION zcr_get_dependency_obj_new.
 *"----------------------------------------------------------------------
 *"*"Local Interface:
 *"  IMPORTING
 *"     REFERENCE(II_OBJECTS) TYPE  ZPOC_TT_OBJ
 *"  EXPORTING
 *"     REFERENCE(EV_JSON) TYPE  STRING
+*"     REFERENCE(EV_DDIC_JSON) TYPE  STRING
 *"----------------------------------------------------------------------
 
   "=============================
   " Type Definitions
   "=============================
   TYPES: BEGIN OF ty_dependency,
-           type TYPE string,
-           name TYPE string,
+           type      TYPE string,
+           name      TYPE string,
+           signature TYPE zcr_ts_signature,
          END OF ty_dependency.
 
   TYPES: ty_t_dependency TYPE STANDARD TABLE OF ty_dependency WITH EMPTY KEY.
@@ -36,11 +38,6 @@ FUNCTION zcr_get_dependency_obj.
 
   DATA: lt_env TYPE TABLE OF senvi,
         ls_env TYPE senvi.
-
-  DATA: lo_writer    TYPE REF TO cl_sxml_string_writer,
-        lv_json      TYPE string,
-        lw_ddic_json TYPE string.
-
 
   DATA: BEGIN OF ls_func,
           funcname TYPE tfdir-funcname,
@@ -131,6 +128,19 @@ FUNCTION zcr_get_dependency_obj.
             TRANSPORTING NO FIELDS.
 
           IF sy-subrc <> 0.
+            " Enrich PROG/INCL/FUNC dependencies with a signature summary.
+            " (METH dependencies discovered here have no reliable parent
+            " class name to hand to RTTI, so they stay unenriched - METH
+            " enrichment happens where we build it ourselves below.)
+            IF ls_dep-type = 'PROG' OR ls_dep-type = 'INCL' OR ls_dep-type = 'FUNC'.
+              CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+                EXPORTING
+                  iv_obj_type    = ls_dep-type
+                  iv_object_name = ls_dep-name
+                IMPORTING
+                  es_signature   = ls_dep-signature.
+            ENDIF.
+
             APPEND ls_dep TO ls_output-dependencies.
           ENDIF.
 
@@ -180,6 +190,13 @@ FUNCTION zcr_get_dependency_obj.
             CONTINUE.
           ENDIF.
 
+          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+            EXPORTING
+              iv_obj_type    = ls_dep-type
+              iv_object_name = ls_dep-name
+            IMPORTING
+              es_signature   = ls_dep-signature.
+
           APPEND ls_dep TO ls_output-dependencies.
 
         ENDLOOP.
@@ -214,6 +231,13 @@ FUNCTION zcr_get_dependency_obj.
             CONTINUE.
           ENDIF.
 
+          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+            EXPORTING
+              iv_obj_type    = ls_dep-type
+              iv_object_name = ls_dep-name
+            IMPORTING
+              es_signature   = ls_dep-signature.
+
           APPEND ls_dep TO ls_output-dependencies.
 
         ENDLOOP.
@@ -244,6 +268,14 @@ FUNCTION zcr_get_dependency_obj.
           IF sy-subrc = 0.
             CONTINUE.
           ENDIF.
+
+          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+            EXPORTING
+              iv_obj_type    = ls_dep-type
+              iv_object_name = ls_dep-name
+              iv_parent_name = ls_input-object_name
+            IMPORTING
+              es_signature   = ls_dep-signature.
 
           APPEND ls_dep TO ls_output-dependencies.
 
@@ -311,6 +343,14 @@ FUNCTION zcr_get_dependency_obj.
             CONTINUE.
           ENDIF.
 
+          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+            EXPORTING
+              iv_obj_type    = ls_dep-type
+              iv_object_name = ls_intf_method-cmpname
+              iv_parent_name = ls_input-object_name
+            IMPORTING
+              es_signature   = ls_dep-signature.
+
           APPEND ls_dep TO ls_output-dependencies.
 
         ENDLOOP.
@@ -333,34 +373,19 @@ FUNCTION zcr_get_dependency_obj.
   "=============================
   " Convert to JSON
   "=============================
+  ev_json = /ui2/cl_json=>serialize(
+    data     = lt_output
+    compress = abap_true ).
 
-*    ev_json = /ui2/cl_json=>serialize(
-*      data        = lt_output
-*    ).
-
-  lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
-
-  CALL TRANSFORMATION id
-    SOURCE data = lt_output
-    RESULT XML lo_writer.
-
-  lv_json = cl_abap_codepage=>convert_from( lo_writer->get_output( ) ).
-
-  IF  li_ddic_obj_list IS NOT INITIAL.
-** Here We are retriving all the DDIC Objects in JSON format
+  IF li_ddic_obj_list IS NOT INITIAL.
+** Here We are retrieving all the DDIC Objects in JSON format.
+** Returned as its own independent JSON in EV_DDIC_JSON - no longer
+** string-concatenated onto EV_JSON.
     CALL FUNCTION 'Z_GET_DDIC_INFO'
       EXPORTING
         ii_objects = li_ddic_obj_list
       IMPORTING
-        ew_json    = lw_ddic_json.
-
-* Merging DDIC JSON to output JSON
-    REPLACE FIRST OCCURRENCE OF '}' IN lv_json WITH ','.
-    SHIFT lw_ddic_json LEFT DELETING LEADING '{'.
-    ev_json = lv_json && lw_ddic_json.
-
-  ELSE.
-    ev_json  = lv_json.
+        ew_json    = ev_ddic_json.
   ENDIF.
 
 *  " Just for demo purpose during development.

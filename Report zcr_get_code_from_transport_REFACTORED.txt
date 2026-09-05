@@ -617,7 +617,7 @@ ENDFORM.
 *&      Form  FETCH_DEPENDENCY_JSON
 *&---------------------------------------------------------------------*
 FORM fetch_dependency_json.
-  CALL FUNCTION 'ZCR_GET_DEPENDENCY_OBJ'
+  CALL FUNCTION 'ZCR_GET_DEPENDENCY_OBJ_NEW'
     EXPORTING
       ii_objects   = gt_dep
     IMPORTING
