@@ -110,12 +110,6 @@ DATA go_alv_events TYPE REF TO lcl_alv_event_handler.
 
 CLASS lcl_alv_event_handler IMPLEMENTATION.
   METHOD on_f4.
-    " TEMP DIAGNOSTIC - remove once F4 is confirmed working end-to-end.
-    " Isolates whether the event fires at all vs. something silently
-    " failing further down (fieldname mismatch, row lookup, or one of
-    " the two FM calls below).
-    MESSAGE |ON_F4 fired, fieldname = { e_fieldname }| TYPE 'I'.
-
     " Only the "Compare Against Version" column has a custom F4.
     CHECK e_fieldname = 'CMP_VERSNO'.
 
@@ -125,11 +119,17 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
     READ TABLE gt_multi_obj ASSIGNING <fs_row> INDEX es_row_no-row_id.
     CHECK sy-subrc = 0.
 
-    DATA: lv_object_type TYPE e071-object,
-          lv_obj_name    TYPE vrsd-objname,
-          lt_dummy       TYPE STANDARD TABLE OF vrsd,
-          lt_versions    TYPE STANDARD TABLE OF vrsd,
-          lt_f4_list     TYPE STANDARD TABLE OF ddshretval.
+    TYPES: BEGIN OF ts_f4_version,
+             versno TYPE vrsd-versno,
+           END OF ts_f4_version.
+
+    DATA: lv_object_type  TYPE e071-object,
+          lv_obj_name     TYPE vrsd-objname,
+          lt_dummy        TYPE STANDARD TABLE OF vrsd,
+          lt_versions     TYPE STANDARD TABLE OF vrsd,
+          lt_f4_versions  TYPE STANDARD TABLE OF ts_f4_version,
+          lt_f4_list      TYPE STANDARD TABLE OF ddshretval,
+          ls_stable       TYPE lvc_s_stbl.
 
     lv_object_type = <fs_row>-object.
     IF lv_object_type = 'PROG'.
@@ -153,6 +153,11 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
         OTHERS       = 1.
     CHECK sy-subrc = 0.
 
+    " Only pass VERSNO into the F4 popup, not the full VRSD structure -
+    " otherwise the popup renders one column per VRSD field, far wider
+    " than needed.
+    lt_f4_versions = VALUE #( FOR ls_ver IN lt_versions ( versno = ls_ver-versno ) ).
+
     CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
       EXPORTING
         retfield  = 'VERSNO'
@@ -160,7 +165,7 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
         dynpnr    = sy-dynnr
         value_org = 'S'
       TABLES
-        value_tab  = lt_versions
+        value_tab  = lt_f4_versions
         return_tab = lt_f4_list
       EXCEPTIONS
         OTHERS     = 1.
@@ -173,6 +178,12 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
     IF sy-subrc = 0.
       <fs_field> = ls_f4-fieldval.
     ENDIF.
+
+    " The row above is updated, but the grid's on-screen buffer is
+    " separate from the bound table until explicitly refreshed.
+    ls_stable-row = abap_true.
+    ls_stable-col = abap_true.
+    go_alv_grid->refresh_table_display( is_stable = ls_stable ).
 
     er_event_data->m_event_handled = abap_true.
   ENDMETHOD.
