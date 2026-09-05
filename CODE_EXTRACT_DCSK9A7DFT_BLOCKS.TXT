@@ -1,0 +1,697 @@
+=========================================
+Object: ZPCG1I_CMS_PURGE_MAIN_SCR REPS
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_CMS_PURGE_MAIN_SCR","DEPENDENCIES":[{"TYPE":"DGT","NAME":"ABAP_FALSE",,{"TYPE":"DGT","NAME":"ZG100_K_CMS"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_SCR"},{"TYPE":"TYPE","NAME":"ABAP"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+LINE 8: + *                       Modification History                           *
+LINE 9: + *----------------------------------------------------------------------*
+LINE 10: + * 24/08/2026 / DCSK9A7DFT  / Author : Sopra Steria                     *
+LINE 11: + * Description : S-1541543 - SB Cxx - SB Cxx notifications purge        *
+LINE 12: + *               Addition of checkbox for SB Cxx                        *
+LINE 13: + *----------------------------------------------------------------------*
+LINE 17: + PARAMETERS p_sb_cxx AS CHECKBOX DEFAULT abap_false. "++S-1541543 - SB Cxx - SB Cxx notifications purge
+
+=========================================
+Object: ZPCG1Z_CMS_PURGE_MAIN REPS
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_MAIN","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_VERSION",,{"TYPE":"DGT","NAME":"ABAP_FALSE"},{"TYPE":"DGT","NAME":"ABAP_TRUE"},{"TYPE":"DGT","NAME":"ZG100_K_CMS"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_SCR"},{"TYPE":"OM","NAME":"HIDE_DOMAIN_AND_PHASE"},{"TYPE":"OM","NAME":"SUBMIT_PROGRAM"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_MAIN"},{"TYPE":"STRU","NAME":"SYST"},{"TYPE":"TYPE","NAME":"ABAP"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+LINE 11: + *&---------------------------------------------------------------------*
+LINE 12: + * 24/08/2026 / DCSK9A7DFT  / Author : Sopra Steria                     *
+LINE 13: + * Description : S-1541543 - SB Cxx - SB Cxx notifications purge        *
+LINE 14: + *               Addition of checkbox for SB Cxx                        *
+LINE 15: + *----------------------------------------------------------------------*
+LINE 27: +       p_sb_cxx = abap_true. "++S-1541543 - SB Cxx - SB Cxx notifications purge
+
+=========================================
+Object: ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR","DEPENDENCIES":[{"TYPE":"DGT","NAME":"ZG100_K_CMS",,{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numeric Character Field, Length 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + * Description : This report is used to purge table
+LINE 5: + *&---------------------------------------------------------------------*
+LINE 6: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 7: + *----------------------------------------------------------------------*
+LINE 8: + *                       Modification History                           *
+LINE 9: + *----------------------------------------------------------------------*
+LINE 10: + * Date     / User Name   / Transport Request                           *
+LINE 11: + *----------------------------------------------------------------------*
+LINE 12: +
+LINE 13: + SELECTION-SCREEN BEGIN OF BLOCK a1 WITH FRAME TITLE text-001. "Parameter
+LINE 14: + PARAMETERS p_num    TYPE numc10.
+LINE 15: + SELECTION-SCREEN END OF BLOCK a1.
+LINE 16: +
+LINE 17: + **Launcher Parameters
+LINE 18: + SELECTION-SCREEN BEGIN OF BLOCK a2 WITH FRAME TITLE text-002. "Launcher Parameters
+LINE 19: + PARAMETERS:
+LINE 20: + * Domain and phase for the switch table
+LINE 21: +   p_domain TYPE ztddomain OBLIGATORY DEFAULT zg100_k_cms MODIF ID par,
+LINE 22: +   p_phase  TYPE zdcg1e_phase OBLIGATORY MODIF ID par.
+LINE 23: + SELECTION-SCREEN END OF BLOCK a2.
+
+=========================================
+Object: ZPCG1I_CMS_PURGE_MAIN_010_F01 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_F01","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_EXEC_NUMBER",,{"TYPE":"DGT","NAME":"ABAP_TRUE"},{"TYPE":"DTEL","NAME":"NROBJ"},{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"RALDB_VARI"},{"TYPE":"DTEL","NAME":"RVARI_VAL_255"},{"TYPE":"DTEL","NAME":"RVARI_VNAM"},{"TYPE":"DTEL","NAME":"ZDCG1E_MSG_SEVERITY"},{"TYPE":"FUGR","NAME":"SVAR"},{"TYPE":"FUNC","NAME":"RS_VARIANT_EXISTS"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_F01"},{"TYPE":"MESS","NAME":"000"},{"TYPE":"MSAG","NAME":"ZCG1"},{"TYPE":"OM","NAME":"GETNEXT_RANGENUM"},{"TYPE":"OM","NAME":"GET_EXECUTION_NUMBER_OBJECTS"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_LOG_MAIL_PURG"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CECR"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_TRACE_PURGE"},{"TYPE":"PROG","NAME":"ZPCG1Z_G100_MS_PURGE"},{"TYPE":"STRU","NAME":"BAPIRET2"},{"TYPE":"STRU","NAME":"RSVAR"},{"TYPE":"STRU","NAME":"SYST"},{"TYPE":"TABL","NAME":"TVARVC"},{"TYPE":"TABL","NAME":"ZDCG1T_CMS08"},{"TYPE":"TYPE","NAME":"ABAP"}]}]}"PACKAGES":[{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"RALDB_VARI","DESCRIPTION":"Variantenname","DOMAIN":"RALDB_VARI"},{"NAME":"RVARI_VAL_255","DESCRIPTION":"Selektionsvariante: Feldinhalt (LOW/HIGH)","DOMAIN":"RSDSSELOPT_255"},{"NAME":"RVARI_VNAM","DESCRIPTION":"ABA: Nombre de variables en variante","DOMAIN":"SYCHAR30"}],"TABLE":[{"NAME":"TVARVC","DESCRIPTION":"Table of Variant Variables (Client-Specific)","TYPE":"G","SM30":false,"LOCK_OBJECT":"EZTVARVC","FIELD":9,"INDEX":0,"FIELDS":[{"NAME":"TYPE","KEY":"X","DATA_ELEMENT":"RSSCR_KIND"},{"NAME":"NAME","KEY":"X","DATA_ELEMENT":"RVARI_VNAM"},{"NAME":"CLIE_INDEP","KEY":"","DATA_ELEMENT":"SYCHAR01"},{"NAME":"OPTI","KEY":"","DATA_ELEMENT":"TVARV_OPTI"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"SYMANDT"},{"NAME":"SIGN","KEY":"","DATA_ELEMENT":"TVARV_SIGN"},{"NAME":"LOW","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"},{"NAME":"NUMB","KEY":"X","DATA_ELEMENT":"TVARV_NUMB"},{"NAME":"HIGH","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numerisches Characterfeld der Länge 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZN","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NROBJ","DESCRIPTION":"Name des Nummernkreisobjekts","DOMAIN":"NROBJ"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_MSG_SEVERITY","DESCRIPTION":"Severity code","DOMAIN":"ZDCG1D_MSG_SEVERITY"}],"TABLE":[{"NAME":"ZDCG1T_CMS08","DESCRIPTION":"CMS : Table CMS Log","TYPE":"A","SM30":false,"LOCK_OBJECT":"","FIELD":12,"INDEX":0,"FIELDS":[{"NAME":"EXECUTION_NUM","KEY":"X","DATA_ELEMENT":"NUMC10"},{"NAME":"MSGNR","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_NUM"},{"NAME":"PROCESS_CODE","KEY":"X","DATA_ELEMENT":"ZDCG1E_PROCESS_CODE"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"MANDT"},{"NAME":"TIMESTAMP","KEY":"X","DATA_ELEMENT":"ZDCG1E_TIMESTAMP"},{"NAME":"SEVERITY","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_SEVERITY"},{"NAME":"AC_PROGRAM","KEY":"X","DATA_ELEMENT":"ZTF"},{"NAME":"SUB_APPLI","KEY":"X","DATA_ELEMENT":"ZDCG1E_SUB_APPLI"},{"NAME":"EXECUTION_TIME","KEY":"","DATA_ELEMENT":"Z_ACTION_TIME"},{"NAME":"TEXT","KEY":"","DATA_ELEMENT":"ZDCG1E_TEXT"},{"NAME":"TYPE","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_TYPE"},{"NAME":"EXECUTION_DATE","KEY":"","DATA_ELEMENT":"Z_ACTION_DATE"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_CMS_PURGE_MAIN_005_F01
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * Description : This report is used to purge table
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: +
+--- Block: FORM main_process ---
+LINE 14: + FORM main_process.
+LINE 15: +
+LINE 16: +   CONSTANTS :
+LINE 17: +     lk_histo_variant     TYPE raldb_vari VALUE 'PR_',
+LINE 18: +     lk_histo_name_report TYPE rsvar-report VALUE 'ZPCG1Z_G100_RCD_PURGE_PROP'.
+LINE 19: +
+LINE 20: +   DATA:
+LINE 21: +     ls_ac            TYPE ts_ac,
+LINE 22: +     ls_message       TYPE  bapiret2,
+LINE 23: +     li_message       TYPE TABLE OF bapiret2,
+LINE 24: +     li_ac            TYPE ti_ac,
+LINE 25: +     lw_exec_number   TYPE nrobj,
+LINE 26: +     lw_severity_code TYPE zdcg1e_msg_severity,
+LINE 27: +     lw_snro          TYPE numc10,
+LINE 28: +     lw_variant       TYPE raldb_vari,
+LINE 29: +     lw_subrc         TYPE sy-subrc.
+LINE 30: +
+LINE 31: + * get tf for purge
+LINE 32: +   CASE sy-sysid.
+LINE 33: + *   for airbus
+LINE 34: +     WHEN k_dcs OR k_ics OR k_vcs OR k_pcs.
+LINE 35: +       PERFORM get_tvarvc   USING    k_parameter_airbus
+LINE 36: +                            CHANGING li_ac.
+LINE 37: + *   for atr
+LINE 38: +     WHEN k_dat OR k_vat OR k_pat.
+LINE 39: +       PERFORM get_tvarvc   USING    k_parameter_atr
+LINE 40: +                            CHANGING li_ac.
+LINE 41: +     WHEN OTHERS.
+LINE 42: +   ENDCASE.
+LINE 43: +
+LINE 44: + * get a information about a SNRO in T05
+LINE 45: +   zcl_cg1_exec_number=>get_execution_number_objects(
+LINE 46: +   EXPORTING
+LINE 47: + *     iw_acprog         =     " TF
+LINE 48: +     iw_batch_name     =  k_name_batch   " Proces Name
+LINE 49: +   IMPORTING
+LINE 50: +     ew_exec_num_rno   =  lw_exec_number  " Execution Object (ZDCG1T_T05)
+LINE 51: +   CHANGING
+LINE 52: + *     ci_zdcg1t_log_cms =     " Log Table (For old Report)
+LINE 53: +     cw_severity_code  =  lw_severity_code   " Severity Code
+LINE 54: +   ).
+LINE 55: +
+LINE 56: + * get a next number for SNRO
+LINE 57: +   zcl_cg1_exec_number=>getnext_rangenum(
+LINE 58: +    EXPORTING
+LINE 59: + *         iw_acprog         =     " TF
+LINE 60: +         iw_snro           =  lw_exec_number
+LINE 61: +    IMPORTING
+LINE 62: +         ew_rangenum = lw_snro
+LINE 63: +    CHANGING
+LINE 64: +        cw_severity_code  =  lw_severity_code   " Severity Code
+LINE 65: +    ).
+LINE 66: +
+LINE 67: +
+LINE 68: + * if the check box is true for ... purge : call this program (whis submit)
+LINE 69: + *  CASE abap_true.
+LINE 70: + *    WHEN p_cecr.
+LINE 71: +   IF p_cecr = abap_true.
+LINE 72: +     WRITE: text-004. " Call CECR purge
+LINE 73: +     NEW-LINE.
+LINE 74: +
+LINE 75: +     SUBMIT zpcg1z_cms_purge_cecr
+LINE 76: +         WITH p_domain = p_domain
+LINE 77: +         WITH p_phase = p_phase
+LINE 78: +         WITH p_num    = lw_snro
+LINE 79: +         AND RETURN.
+LINE 80: +     IF sy-subrc <> 0.
+LINE 81: +       MESSAGE w000 WITH text-008.      "Issue during submit purge CECR.
+LINE 82: +       NEW-LINE.
+LINE 83: +     ENDIF.
+LINE 84: +   ENDIF.
+LINE 85: + *    WHEN p_trace.
+LINE 86: +   IF p_trace =  abap_true.
+LINE 87: +     WRITE: text-003. " Call trace purge
+LINE 88: +     NEW-LINE.        "+V251-01
+LINE 89: +
+LINE 90: +     SUBMIT zpcg1z_cms_trace_purge
+LINE 91: +         WITH p_domain = p_domain
+LINE 92: +         WITH p_phase  = p_phase
+LINE 93: +         WITH p_num    = lw_snro
+LINE 94: +         AND RETURN.
+LINE 95: +     IF sy-subrc <> 0.
+LINE 96: +       MESSAGE w000 WITH text-009.      "Issue during submit purge TRACE.
+LINE 97: +       NEW-LINE.
+LINE 98: +     ENDIF.
+LINE 99: +   ENDIF.
+LINE 100: + *    WHEN p_log_m.
+LINE 101: +   IF p_log_m = abap_true.
+LINE 102: +     WRITE: text-005. " Call mail/LOG purge
+LINE 103: +     NEW-LINE.
+LINE 104: +
+LINE 105: +     SUBMIT zpcg1z_cms_log_mail_purg
+LINE 106: +         WITH p_domain = p_domain
+LINE 107: +         WITH p_phase  = p_phase
+LINE 108: +         WITH p_num    = lw_snro
+LINE 109: +         AND RETURN.
+LINE 110: +     IF sy-subrc <> 0.
+LINE 111: +       MESSAGE w000 WITH text-010.      "Issue during submit purge MAIL/LOG.
+LINE 112: +       NEW-LINE.
+LINE 113: +     ENDIF.
+LINE 114: +   ENDIF.
+LINE 115: + *    WHEN p_ms.
+LINE 116: +   IF p_ms = abap_true.
+LINE 117: +     WRITE: text-006. " Call purge ms
+LINE 118: +     NEW-LINE.
+LINE 119: +
+LINE 120: +     LOOP AT li_ac INTO ls_ac.
+LINE 121: +       SUBMIT zpcg1z_g100_ms_purge
+LINE 122: +           WITH p_acprog = ls_ac-ac_program
+LINE 123: +           WITH p_domain = p_domain
+LINE 124: +           WITH p_phase  = p_phase
+LINE 125: +           WITH p_num    = lw_snro
+LINE 126: +           AND RETURN.
+LINE 127: +       IF sy-subrc <> 0.
+LINE 128: +         MESSAGE w000 WITH text-011.      "Issue during submit purge MS.
+LINE 129: +         NEW-LINE.
+LINE 130: +       ENDIF.
+LINE 131: +     ENDLOOP.
+LINE 132: +   ENDIF.
+LINE 133: + *ADD Begin V251-01
+LINE 134: +   IF p_hist = abap_true.
+LINE 135: +     FREE : ls_message, li_message.
+LINE 136: +     WRITE: text-013. " Call histo purge.
+LINE 137: +     NEW-LINE.
+LINE 138: +
+LINE 139: +     "Export snro to save the message with the same reference for all the report launch by this main purge report
+LINE 140: +     gw_numexe = lw_snro.
+LINE 141: +     "Import done in the called report in the last technical version of ZPCG1Z_G100_RCD_PURGE_PROP .
+LINE 142: +     EXPORT gw_numexe TO MEMORY ID 'MAIN_SNRO'.
+LINE 143: +
+LINE 144: +     LOOP AT li_ac INTO ls_ac.
+LINE 145: +       CONCATENATE lk_histo_variant ls_ac-ac_program INTO lw_variant.
+LINE 146: +       CALL FUNCTION 'RS_VARIANT_EXISTS'
+LINE 147: +         EXPORTING
+LINE 148: +           report              = lk_histo_name_report
+LINE 149: +           variant             = lw_variant
+LINE 150: +         IMPORTING
+LINE 151: +           r_c                 = lw_subrc
+LINE 152: +         EXCEPTIONS
+LINE 153: +           not_authorized      = 1
+LINE 154: +           no_report           = 2
+LINE 155: +           report_not_existent = 3
+LINE 156: +           report_not_supplied = 4
+LINE 157: +           OTHERS              = 5.
+LINE 158: +       IF sy-subrc <> 0 OR lw_subrc IS NOT INITIAL.
+LINE 159: +         ls_message-type       = 'E'.
+LINE 160: +         ls_message-id         = 'ZCG1'.
+LINE 161: +         ls_message-number     = 000.
+LINE 162: +         ls_message-message_v1 = lw_variant.
+LINE 163: +         ls_message-message_v2 = text-015.
+LINE 164: +         ls_message-message_v3 = lk_histo_name_report.
+LINE 165: +
+LINE 166: +         APPEND ls_message TO li_message.
+LINE 167: +       ELSE.
+LINE 168: + *        SUBMIT zpcg1z_g100_rcd_purge_prop
+LINE 169: +         SUBMIT (lk_histo_name_report)
+LINE 170: +             USING SELECTION-SET lw_variant
+LINE 171: +             AND RETURN.
+LINE 172: +         IF sy-subrc <> 0.
+LINE 173: +           MESSAGE w000 WITH text-014 lw_variant.      "Issue during submit purge HISTO.
+LINE 174: +           NEW-LINE.
+LINE 175: +         ENDIF.
+LINE 176: +       ENDIF.
+LINE 177: +     ENDLOOP.
+LINE 178: +     " Initialisation of memory
+LINE 179: +     FREE gw_numexe.
+LINE 180: +     FREE MEMORY ID 'MAIN_SNRO'.
+LINE 181: +
+LINE 182: +     LOOP AT li_message INTO ls_message.
+LINE 183: +       MESSAGE ID ls_message-id TYPE 'W' NUMBER ls_message-number
+LINE 184: +         WITH ls_message-message_v1 ls_message-message_v2 ls_message-message_v3.
+LINE 185: +       NEW-LINE.
+LINE 186: +     ENDLOOP.
+LINE 187: +   ENDIF.
+LINE 188: +
+LINE 189: +   "Begin of INS S-1541543 - SB Cxx - SB Cxx notifications purge
+LINE 190: +   IF p_sb_cxx = abap_true.
+LINE 191: +     WRITE: text-017. " Call trace purge
+LINE 192: +     NEW-LINE.
+LINE 193: +
+LINE 194: +     SUBMIT zpcg1z_cms_purge_cxx_notif
+LINE 195: +         WITH p_domain = p_domain
+LINE 196: +         WITH p_phase  = p_phase
+LINE 197: +         WITH p_num    = lw_snro
+LINE 198: +         AND RETURN.
+LINE 199: +     IF sy-subrc <> 0.
+LINE 200: +       MESSAGE w000 WITH text-009.      "Issue during submit purge TRACE.
+LINE 201: +       NEW-LINE.
+LINE 202: +     ENDIF.
+LINE 203: +   ENDIF.
+LINE 204: +   "End of INS S-1541543 - SB Cxx - SB Cxx notifications purge
+LINE 205: +
+LINE 206: + *ADD End V251-01
+LINE 207: + *    WHEN OTHERS.
+LINE 208: + *      WRITE: text-007.
+LINE 209: + *  ENDCASE.
+LINE 210: +   PERFORM check_msg USING lw_snro.
+LINE 211: + ENDFORM.
+
+LINE 212: +
+LINE 213: +
+LINE 214: + *&---------------------------------------------------------------------*
+LINE 215: + *       text
+LINE 216: + *----------------------------------------------------------------------*
+LINE 217: + *      -->Pw_param_name  text
+LINE 218: + *      <--PW_DELTA  text
+LINE 219: + *----------------------------------------------------------------------*
+--- Block: FORM get_tvarvc USING pw_param_name TYPE rvari_vnam ---
+LINE 220: + FORM get_tvarvc USING     pw_param_name TYPE rvari_vnam
+LINE 221: +                 CHANGING  pi_ac         TYPE ti_ac.
+LINE 222: +   DATA:
+LINE 223: +     li_tvarvc_low TYPE TABLE OF rvari_val_255,
+LINE 224: +     ls_tvarvc_low TYPE rvari_val_255,
+LINE 225: +     ls_ac         TYPE ts_ac.
+LINE 226: +
+LINE 227: + * get tf for purge
+LINE 228: +   SELECT low FROM   tvarvc  INTO TABLE li_tvarvc_low
+LINE 229: +            WHERE  name        = pw_param_name
+LINE 230: +            AND    type        = k_type_s.
+LINE 231: +   IF sy-subrc <> 0.
+LINE 232: +     WRITE:
+LINE 233: +     pw_param_name, "name parameter airbur or atr
+LINE 234: +     text-012. "not found in tvarvc.
+LINE 235: +   ENDIF.
+LINE 236: +   LOOP AT li_tvarvc_low INTO ls_tvarvc_low.
+LINE 237: +     ls_ac-ac_program = ls_tvarvc_low.
+LINE 238: +     APPEND ls_ac TO pi_ac.
+LINE 239: +   ENDLOOP.
+LINE 240: + ENDFORM.
+
+LINE 241: +
+LINE 242: +
+LINE 243: + *&---------------------------------------------------------------------*
+LINE 244: + *&      Form  CHECK_MSG
+LINE 245: + *&---------------------------------------------------------------------*
+LINE 246: + *       text
+LINE 247: + *----------------------------------------------------------------------*
+LINE 248: + *  -->  p1        text
+LINE 249: + *  <--  p2        text
+LINE 250: + *----------------------------------------------------------------------*
+LINE 251: + * 04.12.2024 / Sopra Group / DCSK9A6PCY / V251-01 / E-358114           *
+LINE 252: + * Description :  Add the management of the histo purge report          *
+LINE 253: + *======================================================================*
+--- Block: FORM check_msg USING pw_snro TYPE numc10 ---
+LINE 254: + FORM check_msg USING pw_snro TYPE numc10.
+LINE 255: +
+LINE 256: +   DATA :
+LINE 257: + *    ls_cms08_text TYPE zdcg1e_text,
+LINE 258: + *    li_cms08_text TYPE TABLE OF zdcg1e_text.
+LINE 259: +     ls_cms08_text TYPE zdcg1t_cms08,
+LINE 260: +     li_cms08_text TYPE TABLE OF zdcg1t_cms08.
+LINE 261: + * search error message in zdcg1t_cms08
+LINE 262: +   SELECT mandt
+LINE 263: +          sub_appli
+LINE 264: +          process_code
+LINE 265: +          ac_program
+LINE 266: +          execution_num
+LINE 267: +          timestamp
+LINE 268: +          execution_date
+LINE 269: +          execution_time
+LINE 270: +          msgnr
+LINE 271: +          text
+LINE 272: +          severity
+LINE 273: +          type
+LINE 274: +      FROM   zdcg1t_cms08  INTO TABLE li_cms08_text
+LINE 275: +            WHERE  sub_appli = k_sub_appli
+LINE 276: +            AND    severity  = k_severity_f
+LINE 277: +            AND     execution_num = pw_snro.
+LINE 278: + * make error the "job" if there is an error
+LINE 279: +   IF sy-subrc = 0.
+LINE 280: +     ls_cms08_text =  li_cms08_text[  execution_num = pw_snro ].
+LINE 281: +     IF sy-subrc = 0.
+LINE 282: +       MESSAGE e000 WITH ls_cms08_text-text k_text  pw_snro."ls_cms08_text.
+LINE 283: +     ENDIF.
+LINE 284: + *    LOOP AT li_cms08_text INTO ls_cms08_text.
+LINE 285: + *      MESSAGE e000 WITH ls_cms08_text.
+LINE 286: + *    ENDLOOP.
+LINE 287: +   ENDIF.
+LINE 288: + ENDFORM.
+
+
+=========================================
+Object: ZPCG1I_CMS_PURGE_MAIN_010_SCR PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_SCR","DEPENDENCIES":[{"TYPE":"DGT","NAME":"ABAP_FALSE",,{"TYPE":"DGT","NAME":"ZG100_K_CMS"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_SCR"},{"TYPE":"TYPE","NAME":"ABAP"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_CMS_PURGE_MAIN_010_SCR
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * DESCRIPTION : This report is used to purge table cms
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: +
+LINE 14: + * multiple choose purge
+LINE 15: + SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001. "Type purge
+LINE 16: + PARAMETERS p_cecr AS CHECKBOX DEFAULT abap_false.
+LINE 17: + PARAMETERS p_trace AS CHECKBOX DEFAULT abap_false.
+LINE 18: + PARAMETERS p_log_m AS CHECKBOX DEFAULT abap_false.
+LINE 19: + PARAMETERS p_ms AS CHECKBOX DEFAULT abap_false.
+LINE 20: + PARAMETERS p_hist AS CHECKBOX DEFAULT abap_false. "+V251-01
+LINE 21: + PARAMETERS p_sb_cxx AS CHECKBOX DEFAULT abap_false.
+LINE 22: + SELECTION-SCREEN END OF BLOCK b1.
+LINE 23: +
+LINE 24: + **Launcher Parameters
+LINE 25: + SELECTION-SCREEN BEGIN OF BLOCK a2 WITH FRAME TITLE text-002. "Launcher Parameters
+LINE 26: + PARAMETERS:
+LINE 27: + * Domain and phase for the switch table
+LINE 28: +   p_domain TYPE ztddomain OBLIGATORY DEFAULT zg100_k_cms MODIF ID par,
+LINE 29: +   p_phase  TYPE zdcg1e_phase OBLIGATORY MODIF ID par.
+LINE 30: + SELECTION-SCREEN END OF BLOCK a2.
+
+=========================================
+Object: ZPCG1I_CMS_PURGE_MAIN_010_TOP PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_TOP","DEPENDENCIES":[{"TYPE":"DTEL","NAME":"CHAR3",,{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"RSSCR_KIND"},{"TYPE":"DTEL","NAME":"RVARI_VNAM"},{"TYPE":"DTEL","NAME":"ZDCG1E_MSG_SEVERITY"},{"TYPE":"DTEL","NAME":"ZDCG1E_PROCESS_NAME"},{"TYPE":"DTEL","NAME":"ZDCG1E_SUB_APPLI"},{"TYPE":"DTEL","NAME":"ZTF"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_TOP"}]}]}"PACKAGES":[{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"RSSCR_KIND","DESCRIPTION":"ABAP/4 : type de sélection","DOMAIN":"SYCHAR01"},{"NAME":"RVARI_VNAM","DESCRIPTION":"ABA: Nombre de variables en variante","DOMAIN":"SYCHAR30"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numerisches Characterfeld der Länge 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZS","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"CHAR3","DESCRIPTION":"Feld der Laenge 3 Bytes","DOMAIN":"CHAR3"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZ01","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTF","DESCRIPTION":"TF","DOMAIN":"ZTF"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_MSG_SEVERITY","DESCRIPTION":"Severity code","DOMAIN":"ZDCG1D_MSG_SEVERITY"},{"NAME":"ZDCG1E_PROCESS_NAME","DESCRIPTION":"Proces Name","DOMAIN":"CHAR30"},{"NAME":"ZDCG1E_SUB_APPLI","DESCRIPTION":"CDP/CMS Sub-Application","DOMAIN":"ZDCG1D_SUB_APPLI"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_CMS_PURGE_MAIN_010_TOP
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * DESCRIPTION : This report is used to purge table cms
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: +
+LINE 14: + CONSTANTS:
+LINE 15: +   k_parameter_airbus TYPE rvari_vnam VALUE 'ZCG1_AIRBUS_TF_PURGE',
+LINE 16: +   k_parameter_atr    TYPE rvari_vnam VALUE 'ZCG1_ATR_TF_PURGE',
+LINE 17: +   k_type_s           TYPE rsscr_kind VALUE 'S',
+LINE 18: +   k_dcs              TYPE char3 VALUE 'DCS',
+LINE 19: +   k_ics              TYPE char3 VALUE 'ICS',
+LINE 20: +   k_vcs              TYPE char3 VALUE 'VCS',
+LINE 21: +   k_pcs              TYPE char3 VALUE 'PCS',
+LINE 22: +   k_dat              TYPE char3 VALUE 'DAT',
+LINE 23: +   k_vat              TYPE char3 VALUE 'VAT',
+LINE 24: +   k_pat              TYPE char3 VALUE 'PAT',
+LINE 25: +   k_name_batch       TYPE zdcg1e_process_name VALUE 'ZPCG1Z_CMS_PURGE_MAIN',
+LINE 26: +   k_sub_appli        TYPE zdcg1e_sub_appli    VALUE 'PURG',
+LINE 27: +   k_severity_f       TYPE zdcg1e_msg_severity VALUE 'F',
+LINE 28: +   k_text             TYPE string VALUE 'With execution number'.
+LINE 29: +
+LINE 30: +
+LINE 31: + TYPES: BEGIN OF ts_ac,
+LINE 32: +          ac_program TYPE ztf,
+LINE 33: +        END OF ts_ac.
+LINE 34: + TYPES: ti_ac TYPE TABLE OF ts_ac.
+LINE 35: +
+LINE 36: + DATA : gw_numexe TYPE numc10.
+
+=========================================
+Object: ZPCG1I_PURGE_CXX_NOTIF_F01_001 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_PURGE_CXX_NOTIF_F01_001","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_MESSAGE",,{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_F01_001"},{"TYPE":"OM","NAME":"ADD_MESSAGE_BATCH"},{"TYPE":"STRU","NAME":"SYST"},{"TYPE":"TABL","NAME":"TVARVC"},{"TYPE":"TABL","NAME":"ZDCG1T_CMS08"}]}]}"PACKAGES":[{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[],"TABLE":[{"NAME":"TVARVC","DESCRIPTION":"Table of Variant Variables (Client-Specific)","TYPE":"G","SM30":false,"LOCK_OBJECT":"EZTVARVC","FIELD":9,"INDEX":0,"FIELDS":[{"NAME":"TYPE","KEY":"X","DATA_ELEMENT":"RSSCR_KIND"},{"NAME":"NAME","KEY":"X","DATA_ELEMENT":"RVARI_VNAM"},{"NAME":"CLIE_INDEP","KEY":"","DATA_ELEMENT":"SYCHAR01"},{"NAME":"OPTI","KEY":"","DATA_ELEMENT":"TVARV_OPTI"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"SYMANDT"},{"NAME":"SIGN","KEY":"","DATA_ELEMENT":"TVARV_SIGN"},{"NAME":"LOW","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"},{"NAME":"NUMB","KEY":"X","DATA_ELEMENT":"TVARV_NUMB"},{"NAME":"HIGH","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[],"TABLE":[{"NAME":"ZDCG1T_CMS08","DESCRIPTION":"CMS : Table CMS Log","TYPE":"A","SM30":false,"LOCK_OBJECT":"","FIELD":12,"INDEX":0,"FIELDS":[{"NAME":"EXECUTION_NUM","KEY":"X","DATA_ELEMENT":"NUMC10"},{"NAME":"MSGNR","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_NUM"},{"NAME":"PROCESS_CODE","KEY":"X","DATA_ELEMENT":"ZDCG1E_PROCESS_CODE"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"MANDT"},{"NAME":"TIMESTAMP","KEY":"X","DATA_ELEMENT":"ZDCG1E_TIMESTAMP"},{"NAME":"SEVERITY","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_SEVERITY"},{"NAME":"AC_PROGRAM","KEY":"X","DATA_ELEMENT":"ZTF"},{"NAME":"SUB_APPLI","KEY":"X","DATA_ELEMENT":"ZDCG1E_SUB_APPLI"},{"NAME":"EXECUTION_TIME","KEY":"","DATA_ELEMENT":"Z_ACTION_TIME"},{"NAME":"TEXT","KEY":"","DATA_ELEMENT":"ZDCG1E_TEXT"},{"NAME":"TYPE","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_TYPE"},{"NAME":"EXECUTION_DATE","KEY":"","DATA_ELEMENT":"Z_ACTION_DATE"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_PURGE_CXX_NOTIF_F01_001
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + * Description : This report is used to purge table
+LINE 5: + *&---------------------------------------------------------------------*
+LINE 6: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 7: + *----------------------------------------------------------------------*
+LINE 8: + *                       Modification History                           *
+LINE 9: + *----------------------------------------------------------------------*
+LINE 10: + * Date     / User Name   / Transport Request                           *
+LINE 11: + *----------------------------------------------------------------------*
+LINE 12: +
+LINE 13: + CLASS purge_sb_cxx_notif IMPLEMENTATION.
+--- Block: METHOD get_purge_period_tvarvc ---
+LINE 14: +   METHOD get_purge_period_tvarvc.
+LINE 15: + * Fetch purge period
+LINE 16: +     SELECT low UP TO 1 ROWS  FROM tvarvc
+LINE 17: +                  INTO gw_purge_period
+LINE 18: +                  WHERE name = k_sbcxx_purge_period.
+LINE 19: +     ENDSELECT.
+LINE 20: +
+LINE 21: +     IF sy-subrc NE 0.
+LINE 22: +       CALL METHOD zcl_cg1_message=>add_message_batch
+LINE 23: +         EXPORTING
+LINE 24: +           iw_subappli       = k_subappli
+LINE 25: +           iw_num_mess       = 001 "Purge Period Not Found.
+LINE 26: +           iw_exenum         = p_num
+LINE 27: +           iw_process_code   = k_code
+LINE 28: +           iw_ac_program     = space
+LINE 29: +         CHANGING
+LINE 30: +           ci_zdcg1t_log_cms = gi_zdcg1t_log_cms[]
+LINE 31: +           cw_severity_code  = gw_severity.
+LINE 32: +
+LINE 33: +     ENDIF.
+LINE 34: +   ENDMETHOD.
+
+--- Block: METHOD calculate_purge_timestamp ---
+LINE 35: +   METHOD calculate_purge_timestamp.
+LINE 36: +     DATA :  lw_limit_date1  TYPE sy-datum.
+LINE 37: +
+LINE 38: + * Compute Limit Date : Current date - purge period
+LINE 39: +     GET TIME.
+LINE 40: +     lw_limit_date1 = sy-datum - gw_purge_period.
+LINE 41: +     CONVERT DATE lw_limit_date1  TIME sy-uzeit INTO
+LINE 42: +             TIME STAMP gw_limit_date TIME ZONE sy-zonlo.
+LINE 43: +
+LINE 44: +   ENDMETHOD.
+
+--- Block: METHOD delete ---
+LINE 45: +   METHOD delete.
+LINE 46: + * Delete data from table
+LINE 47: +     DELETE FROM (iw_purge_table)
+LINE 48: +           WHERE archived_timestamp <= gw_limit_date.
+LINE 49: +     IF sy-subrc NE 0.
+LINE 50: +       CALL METHOD zcl_cg1_message=>add_message_batch
+LINE 51: +         EXPORTING
+LINE 52: +           iw_subappli       = k_subappli
+LINE 53: +           iw_num_mess       = 010 "No data to purge in table &
+LINE 54: +           iw_exenum         = p_num
+LINE 55: +           iw_process_code   = k_code
+LINE 56: +           iw_ac_program     = ' '
+LINE 57: +           iw_param1         = iw_purge_table
+LINE 58: +         CHANGING
+LINE 59: +           ci_zdcg1t_log_cms = gi_zdcg1t_log_cms[]
+LINE 60: +           cw_severity_code  = gw_severity.
+LINE 61: +       DATA(ls_zdcg1t_log_cms) = gi_zdcg1t_log_cms[ lines( gi_zdcg1t_log_cms ) ].
+LINE 62: +       WRITE : ls_zdcg1t_log_cms-text.
+LINE 63: +
+LINE 64: +     ELSE.
+LINE 65: +       CALL METHOD zcl_cg1_message=>add_message_batch
+LINE 66: +         EXPORTING
+LINE 67: +           iw_subappli       = k_subappli
+LINE 68: +           iw_num_mess       = 004 "Deletion of & table Successful.
+LINE 69: +           iw_exenum         = p_num
+LINE 70: +           iw_process_code   = k_code
+LINE 71: +           iw_ac_program     = ' '
+LINE 72: +           iw_param1         = iw_purge_table
+LINE 73: +         CHANGING
+LINE 74: +           ci_zdcg1t_log_cms = gi_zdcg1t_log_cms[]
+LINE 75: +           cw_severity_code  = gw_severity.
+LINE 76: +       ls_zdcg1t_log_cms = gi_zdcg1t_log_cms[ lines( gi_zdcg1t_log_cms ) ].
+LINE 77: +       WRITE : ls_zdcg1t_log_cms-text.
+LINE 78: +
+LINE 79: +     ENDIF.
+LINE 80: +   ENDMETHOD.
+
+LINE 81: + ENDCLASS.
+
+=========================================
+Object: ZPCG1I_PURGE_CXX_NOTIF_SCR_001 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_PURGE_CXX_NOTIF_SCR_001","DEPENDENCIES":[{"TYPE":"DTEL","NAME":"NUMC10",,{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_SCR_001"}]}]}"PACKAGES":[{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numeric Character Field, Length 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + * Description : This report is used to purge table
+LINE 5: + *&---------------------------------------------------------------------*
+LINE 6: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 7: + *----------------------------------------------------------------------*
+LINE 8: + *                       Modification History                           *
+LINE 9: + *----------------------------------------------------------------------*
+LINE 10: + * Date     / User Name   / Transport Request                           *
+LINE 11: + *----------------------------------------------------------------------*
+LINE 12: +
+LINE 13: + SELECTION-SCREEN BEGIN OF BLOCK a1 WITH FRAME TITLE text-001. "Parameter
+LINE 14: + PARAMETERS p_num    TYPE numc10.
+LINE 15: + SELECTION-SCREEN END OF BLOCK a1.
+
+=========================================
+Object: ZPCG1I_PURGE_CXX_NOTIF_TOP_001 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1I_PURGE_CXX_NOTIF_TOP_001","DEPENDENCIES":[{"TYPE":"DGT","NAME":"ZG100_K_SUCCESS",,{"TYPE":"DTEL","NAME":"RVARI_VNAM"},{"TYPE":"DTEL","NAME":"TABNAME"},{"TYPE":"DTEL","NAME":"TIMESTAMPL"},{"TYPE":"DTEL","NAME":"ZDCG1E_PROCESS_CODE"},{"TYPE":"DTEL","NAME":"ZDCG1E_SUB_APPLI"},{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_TOP_001"},{"TYPE":"TABL","NAME":"TVARVC"},{"TYPE":"TABL","NAME":"ZDCG1T_CMS08"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"SDIC","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"TABNAME","DESCRIPTION":"Tabellenname","DOMAIN":"AS4TAB"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"RVARI_VNAM","DESCRIPTION":"ABA: Nombre de variables en variante","DOMAIN":"SYCHAR30"}],"TABLE":[{"NAME":"TVARVC","DESCRIPTION":"Table of Variant Variables (Client-Specific)","TYPE":"G","SM30":false,"LOCK_OBJECT":"EZTVARVC","FIELD":9,"INDEX":0,"FIELDS":[{"NAME":"TYPE","KEY":"X","DATA_ELEMENT":"RSSCR_KIND"},{"NAME":"NAME","KEY":"X","DATA_ELEMENT":"RVARI_VNAM"},{"NAME":"CLIE_INDEP","KEY":"","DATA_ELEMENT":"SYCHAR01"},{"NAME":"OPTI","KEY":"","DATA_ELEMENT":"TVARV_OPTI"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"SYMANDT"},{"NAME":"SIGN","KEY":"","DATA_ELEMENT":"TVARV_SIGN"},{"NAME":"LOW","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"},{"NAME":"NUMB","KEY":"X","DATA_ELEMENT":"TVARV_NUMB"},{"NAME":"HIGH","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZTZ","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"TIMESTAMPL","DESCRIPTION":"UTC-Zeitstempel in Langform (JJJJMMTThhmmssmmmuuun)","DOMAIN":"TZNTSTMPL"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PROCESS_CODE","DESCRIPTION":"Process Code","DOMAIN":"CHAR10"},{"NAME":"ZDCG1E_SUB_APPLI","DESCRIPTION":"CDP/CMS Sub-Application","DOMAIN":"ZDCG1D_SUB_APPLI"}],"TABLE":[{"NAME":"ZDCG1T_CMS08","DESCRIPTION":"CMS : Table CMS Log","TYPE":"A","SM30":false,"LOCK_OBJECT":"","FIELD":12,"INDEX":0,"FIELDS":[{"NAME":"EXECUTION_NUM","KEY":"X","DATA_ELEMENT":"NUMC10"},{"NAME":"MSGNR","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_NUM"},{"NAME":"PROCESS_CODE","KEY":"X","DATA_ELEMENT":"ZDCG1E_PROCESS_CODE"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"MANDT"},{"NAME":"TIMESTAMP","KEY":"X","DATA_ELEMENT":"ZDCG1E_TIMESTAMP"},{"NAME":"SEVERITY","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_SEVERITY"},{"NAME":"AC_PROGRAM","KEY":"X","DATA_ELEMENT":"ZTF"},{"NAME":"SUB_APPLI","KEY":"X","DATA_ELEMENT":"ZDCG1E_SUB_APPLI"},{"NAME":"EXECUTION_TIME","KEY":"","DATA_ELEMENT":"Z_ACTION_TIME"},{"NAME":"TEXT","KEY":"","DATA_ELEMENT":"ZDCG1E_TEXT"},{"NAME":"TYPE","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_TYPE"},{"NAME":"EXECUTION_DATE","KEY":"","DATA_ELEMENT":"Z_ACTION_DATE"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *&  Include           ZPCG1I_PURGE_CXX_NOTIF_TOP_001
+LINE 3: + *&---------------------------------------------------------------------*
+LINE 4: + * Description : This report is used to purge table
+LINE 5: + *&---------------------------------------------------------------------*
+LINE 6: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 7: + *----------------------------------------------------------------------*
+LINE 8: + *                       Modification History                           *
+LINE 9: + *----------------------------------------------------------------------*
+LINE 10: + * Date     / User Name   / Transport Request                           *
+LINE 11: + *----------------------------------------------------------------------*
+LINE 12: +
+LINE 13: + CONSTANTS : k_subappli           TYPE zdcg1e_sub_appli VALUE 'PURG',
+LINE 14: +             k_code               TYPE zdcg1e_process_code VALUE 'CXX NOTIF',
+LINE 15: +             k_sbcxx_purge_period TYPE rvari_vnam VALUE 'ZCG1_SBCXX_PURGE_PERIOD',
+LINE 16: +             BEGIN OF k_tables,
+LINE 17: +               zdcg1t_sbnotif_a TYPE tabname VALUE 'ZDCG1T_SBNOTIF_A',
+LINE 18: +               zdcg1t_sbcnfg_a  TYPE tabname VALUE 'ZDCG1T_SBCNFG_A',
+LINE 19: +               zdcg1t_sbpcnfg_a TYPE tabname VALUE 'ZDCG1T_SBPCNFG_A',
+LINE 20: +               zdcg1t_sblink_a  TYPE tabname VALUE 'ZDCG1T_SBLINK_A',
+LINE 21: +             END OF k_tables.
+LINE 22: + DATA : gw_purge_period   TYPE tvarvc-low,
+LINE 23: +        gw_limit_date     TYPE timestampl,
+LINE 24: +        gw_severity       TYPE c VALUE zg100_k_success,
+LINE 25: +        gi_zdcg1t_log_cms TYPE STANDARD TABLE OF zdcg1t_cms08.
+LINE 26: +
+LINE 27: + CLASS purge_sb_cxx_notif DEFINITION FINAL.
+LINE 28: +   PUBLIC SECTION.
+LINE 29: +     METHODS :
+LINE 30: +       get_purge_period_tvarvc,
+LINE 31: +
+LINE 32: +       calculate_purge_timestamp,
+LINE 33: +
+LINE 34: +       delete
+LINE 35: +         IMPORTING
+LINE 36: +           iw_purge_table TYPE tabname.
+LINE 37: +
+LINE 38: + ENDCLASS.
+LINE 39: +
+LINE 40: + DATA : go_purge_sb_cxx TYPE REF TO purge_sb_cxx_notif.
+
+=========================================
+Object: ZPCG1Z_CMS_PURGE_CXX_NOTIF PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_VERSION",,{"TYPE":"DGT","NAME":"ZG100_K_CMS"},{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_CXX_NOTIF_SCR"},{"TYPE":"OM","NAME":"HIDE_DOMAIN_AND_PHASE"},{"TYPE":"OM","NAME":"SUBMIT_PROGRAM"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numeric Character Field, Length 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *& Report  ZPCG1Z_CMS_PURGE_CXX_NOTIF
+LINE 3: + *&
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * Description : This report is used to purge table
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: + REPORT zpcg1z_cms_purge_cxx_notif.
+LINE 14: +
+LINE 15: + INCLUDE zpcg1i_cms_purge_cxx_notif_scr.
+LINE 16: +
+LINE 17: + AT SELECTION-SCREEN OUTPUT.
+LINE 18: +
+LINE 19: + * Disable Field in Production
+LINE 20: +   CALL METHOD zcl_cg1_version=>hide_domain_and_phase.
+LINE 21: +
+LINE 22: + START-OF-SELECTION.
+LINE 23: +
+LINE 24: + * Submit Report
+LINE 25: +   CALL METHOD zcl_cg1_version=>submit_program.
+
+=========================================
+Object: ZPCG1Z_CMS_PURGE_CXX_NOTIF_001 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF_001","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_MESSAGE",,{"TYPE":"DGT","NAME":"ZG100_K_SUCCESS"},{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"RVARI_VNAM"},{"TYPE":"DTEL","NAME":"TABNAME"},{"TYPE":"DTEL","NAME":"TIMESTAMPL"},{"TYPE":"DTEL","NAME":"ZDCG1E_PROCESS_CODE"},{"TYPE":"DTEL","NAME":"ZDCG1E_SUB_APPLI"},{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_F01_001"},{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_SCR_001"},{"TYPE":"INCL","NAME":"ZPCG1I_PURGE_CXX_NOTIF_TOP_001"},{"TYPE":"OM","NAME":"ADD_MESSAGE_BATCH"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF_001"},{"TYPE":"STRU","NAME":"SYST"},{"TYPE":"TABL","NAME":"TVARVC"},{"TYPE":"TABL","NAME":"ZDCG1T_CMS08"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"SDIC","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"TABNAME","DESCRIPTION":"Tabellenname","DOMAIN":"AS4TAB"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"RVARI_VNAM","DESCRIPTION":"ABAP: Name der Variantenvariablen","DOMAIN":"SYCHAR30"}],"TABLE":[{"NAME":"TVARVC","DESCRIPTION":"Table of Variant Variables (Client-Specific)","TYPE":"G","SM30":false,"LOCK_OBJECT":"EZTVARVC","FIELD":9,"INDEX":0,"FIELDS":[{"NAME":"TYPE","KEY":"X","DATA_ELEMENT":"RSSCR_KIND"},{"NAME":"NAME","KEY":"X","DATA_ELEMENT":"RVARI_VNAM"},{"NAME":"CLIE_INDEP","KEY":"","DATA_ELEMENT":"SYCHAR01"},{"NAME":"OPTI","KEY":"","DATA_ELEMENT":"TVARV_OPTI"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"SYMANDT"},{"NAME":"SIGN","KEY":"","DATA_ELEMENT":"TVARV_SIGN"},{"NAME":"LOW","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"},{"NAME":"NUMB","KEY":"X","DATA_ELEMENT":"TVARV_NUMB"},{"NAME":"HIGH","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numerisches Characterfeld der Länge 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZTZ","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"TIMESTAMPL","DESCRIPTION":"UTC-Zeitstempel in Langform (JJJJMMTThhmmssmmmuuun)","DOMAIN":"TZNTSTMPL"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_PROCESS_CODE","DESCRIPTION":"Process Code","DOMAIN":"CHAR10"},{"NAME":"ZDCG1E_SUB_APPLI","DESCRIPTION":"CDP/CMS Sub-Application","DOMAIN":"ZDCG1D_SUB_APPLI"}],"TABLE":[{"NAME":"ZDCG1T_CMS08","DESCRIPTION":"CMS : Table CMS Log","TYPE":"A","SM30":false,"LOCK_OBJECT":"","FIELD":12,"INDEX":0,"FIELDS":[{"NAME":"EXECUTION_NUM","KEY":"X","DATA_ELEMENT":"NUMC10"},{"NAME":"MSGNR","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_NUM"},{"NAME":"PROCESS_CODE","KEY":"X","DATA_ELEMENT":"ZDCG1E_PROCESS_CODE"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"MANDT"},{"NAME":"TIMESTAMP","KEY":"X","DATA_ELEMENT":"ZDCG1E_TIMESTAMP"},{"NAME":"SEVERITY","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_SEVERITY"},{"NAME":"AC_PROGRAM","KEY":"X","DATA_ELEMENT":"ZTF"},{"NAME":"SUB_APPLI","KEY":"X","DATA_ELEMENT":"ZDCG1E_SUB_APPLI"},{"NAME":"EXECUTION_TIME","KEY":"","DATA_ELEMENT":"Z_ACTION_TIME"},{"NAME":"TEXT","KEY":"","DATA_ELEMENT":"ZDCG1E_TEXT"},{"NAME":"TYPE","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_TYPE"},{"NAME":"EXECUTION_DATE","KEY":"","DATA_ELEMENT":"Z_ACTION_DATE"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *& Report  ZPCG1Z_CMS_PURGE_CXX_NOTIF
+LINE 3: + *&
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * Description : This report is used to purge table
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: + REPORT zpcg1z_cms_purge_cxx_notif_001 NO STANDARD PAGE HEADING.
+LINE 14: +
+LINE 15: + INCLUDE zpcg1i_purge_cxx_notif_scr_001.
+LINE 16: + INCLUDE zpcg1i_purge_cxx_notif_top_001.
+LINE 17: + INCLUDE zpcg1i_purge_cxx_notif_f01_001.
+LINE 18: +
+LINE 19: + START-OF-SELECTION.
+LINE 20: +
+LINE 21: +   CREATE OBJECT go_purge_sb_cxx.
+LINE 22: +
+LINE 23: + * Fetch purge time period
+LINE 24: +   go_purge_sb_cxx->get_purge_period_tvarvc( ).
+LINE 25: +
+LINE 26: +   IF gw_severity EQ zg100_k_success.
+LINE 27: + *   Calculate timestamp
+LINE 28: +     go_purge_sb_cxx->calculate_purge_timestamp( ).
+LINE 29: +
+LINE 30: + *   Deletion of tables ZDCG1T_SBNOTIF_A, ZDCG1T_SBCNFG_A, ZDCG1T_SBPCNFG_A, ZDCG1T_SBLINK_A
+LINE 31: +     go_purge_sb_cxx->delete( iw_purge_table =  k_tables-zdcg1t_sbnotif_a ).
+LINE 32: +     go_purge_sb_cxx->delete( iw_purge_table =  k_tables-zdcg1t_sbcnfg_a ).
+LINE 33: +     go_purge_sb_cxx->delete( iw_purge_table =  k_tables-zdcg1t_sbpcnfg_a ).
+LINE 34: +     go_purge_sb_cxx->delete( iw_purge_table =  k_tables-zdcg1t_sblink_a ).
+LINE 35: +   ENDIF.
+LINE 36: +
+LINE 37: + * Add messages in table log zdcg1t_cms08
+LINE 38: +   IF NOT gi_zdcg1t_log_cms[] IS INITIAL.
+LINE 39: +     INSERT zdcg1t_cms08 FROM TABLE gi_zdcg1t_log_cms[].
+LINE 40: +     COMMIT WORK.
+LINE 41: +   ENDIF.
+
+=========================================
+Object: ZPCG1Z_CMS_PURGE_MAIN_010 PROG
+Dependency JSON: {"DATA":[{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_MAIN_010","DEPENDENCIES":[{"TYPE":"CLAS","NAME":"ZCL_CG1_EXEC_NUMBER",,{"TYPE":"DGT","NAME":"ABAP_FALSE"},{"TYPE":"DGT","NAME":"ABAP_TRUE"},{"TYPE":"DGT","NAME":"ZG100_K_CMS"},{"TYPE":"DTEL","NAME":"CHAR3"},{"TYPE":"DTEL","NAME":"NROBJ"},{"TYPE":"DTEL","NAME":"NUMC10"},{"TYPE":"DTEL","NAME":"RALDB_VARI"},{"TYPE":"DTEL","NAME":"RSSCR_KIND"},{"TYPE":"DTEL","NAME":"RVARI_VAL_255"},{"TYPE":"DTEL","NAME":"RVARI_VNAM"},{"TYPE":"DTEL","NAME":"ZDCG1E_MSG_SEVERITY"},{"TYPE":"DTEL","NAME":"ZDCG1E_PHASE"},{"TYPE":"DTEL","NAME":"ZDCG1E_PROCESS_NAME"},{"TYPE":"DTEL","NAME":"ZDCG1E_SUB_APPLI"},{"TYPE":"DTEL","NAME":"ZTDDOMAIN"},{"TYPE":"DTEL","NAME":"ZTF"},{"TYPE":"FUGR","NAME":"SVAR"},{"TYPE":"FUNC","NAME":"RS_VARIANT_EXISTS"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_F01"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_SCR"},{"TYPE":"INCL","NAME":"ZPCG1I_CMS_PURGE_MAIN_010_TOP"},{"TYPE":"MESS","NAME":"000"},{"TYPE":"MSAG","NAME":"ZCG1"},{"TYPE":"OM","NAME":"GETNEXT_RANGENUM"},{"TYPE":"OM","NAME":"GET_EXECUTION_NUMBER_OBJECTS"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_LOG_MAIL_PURG"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CECR"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_CXX_NOTIF"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_PURGE_MAIN_010"},{"TYPE":"PROG","NAME":"ZPCG1Z_CMS_TRACE_PURGE"},{"TYPE":"PROG","NAME":"ZPCG1Z_G100_MS_PURGE"},{"TYPE":"STRU","NAME":"BAPIRET2"},{"TYPE":"STRU","NAME":"RSVAR"},{"TYPE":"STRU","NAME":"SYST"},{"TYPE":"TABL","NAME":"TVARVC"},{"TYPE":"TABL","NAME":"ZDCG1T_CMS08"},{"TYPE":"TYPE","NAME":"ABAP"},{"TYPE":"TYPE","NAME":"ZG100"}]}]}"PACKAGES":[{"PACKAGE":"SLDBV","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"RALDB_VARI","DESCRIPTION":"Variantenname","DOMAIN":"RALDB_VARI"},{"NAME":"RSSCR_KIND","DESCRIPTION":"ABAP: Clase de selección","DOMAIN":"SYCHAR01"},{"NAME":"RVARI_VAL_255","DESCRIPTION":"Selektionsvariante: Feldinhalt (LOW/HIGH)","DOMAIN":"RSDSSELOPT_255"},{"NAME":"RVARI_VNAM","DESCRIPTION":"ABAP: Name der Variantenvariablen","DOMAIN":"SYCHAR30"}],"TABLE":[{"NAME":"TVARVC","DESCRIPTION":"Table of Variant Variables (Client-Specific)","TYPE":"G","SM30":false,"LOCK_OBJECT":"EZTVARVC","FIELD":9,"INDEX":0,"FIELDS":[{"NAME":"TYPE","KEY":"X","DATA_ELEMENT":"RSSCR_KIND"},{"NAME":"NAME","KEY":"X","DATA_ELEMENT":"RVARI_VNAM"},{"NAME":"CLIE_INDEP","KEY":"","DATA_ELEMENT":"SYCHAR01"},{"NAME":"OPTI","KEY":"","DATA_ELEMENT":"TVARV_OPTI"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"SYMANDT"},{"NAME":"SIGN","KEY":"","DATA_ELEMENT":"TVARV_SIGN"},{"NAME":"LOW","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"},{"NAME":"NUMB","KEY":"X","DATA_ELEMENT":"TVARV_NUMB"},{"NAME":"HIGH","KEY":"","DATA_ELEMENT":"RVARI_VAL_255"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SP0E","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NUMC10","DESCRIPTION":"Numerisches Characterfeld der Länge 10","DOMAIN":"NUMC10"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZN","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"NROBJ","DESCRIPTION":"Name des Nummernkreisobjekts","DOMAIN":"NROBJ"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"SZS","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"CHAR3","DESCRIPTION":"Feld der Laenge 3 Bytes","DOMAIN":"CHAR3"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZPR21","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTDDOMAIN","DESCRIPTION":"Production domain code","DOMAIN":"ZTDDOMAIN"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZ01","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZTF","DESCRIPTION":"TF","DOMAIN":"ZTF"}],"TABLE":[],"STRUCTURE":[],"TABLE_TYPE":[]},{"PACKAGE":"ZZG1","DOMAIN":[],"DATA_ELEMENT":[{"NAME":"ZDCG1E_MSG_SEVERITY","DESCRIPTION":"Severity code","DOMAIN":"ZDCG1D_MSG_SEVERITY"},{"NAME":"ZDCG1E_PHASE","DESCRIPTION":"Phase Code","DOMAIN":"ZDCG1D_PHASE"},{"NAME":"ZDCG1E_PROCESS_NAME","DESCRIPTION":"Proces Name","DOMAIN":"CHAR30"},{"NAME":"ZDCG1E_SUB_APPLI","DESCRIPTION":"CDP/CMS Sub-Application","DOMAIN":"ZDCG1D_SUB_APPLI"}],"TABLE":[{"NAME":"ZDCG1T_CMS08","DESCRIPTION":"CMS : Table CMS Log","TYPE":"A","SM30":false,"LOCK_OBJECT":"","FIELD":12,"INDEX":0,"FIELDS":[{"NAME":"EXECUTION_NUM","KEY":"X","DATA_ELEMENT":"NUMC10"},{"NAME":"MSGNR","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_NUM"},{"NAME":"PROCESS_CODE","KEY":"X","DATA_ELEMENT":"ZDCG1E_PROCESS_CODE"},{"NAME":"MANDT","KEY":"X","DATA_ELEMENT":"MANDT"},{"NAME":"TIMESTAMP","KEY":"X","DATA_ELEMENT":"ZDCG1E_TIMESTAMP"},{"NAME":"SEVERITY","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_SEVERITY"},{"NAME":"AC_PROGRAM","KEY":"X","DATA_ELEMENT":"ZTF"},{"NAME":"SUB_APPLI","KEY":"X","DATA_ELEMENT":"ZDCG1E_SUB_APPLI"},{"NAME":"EXECUTION_TIME","KEY":"","DATA_ELEMENT":"Z_ACTION_TIME"},{"NAME":"TEXT","KEY":"","DATA_ELEMENT":"ZDCG1E_TEXT"},{"NAME":"TYPE","KEY":"","DATA_ELEMENT":"ZDCG1E_MSG_TYPE"},{"NAME":"EXECUTION_DATE","KEY":"","DATA_ELEMENT":"Z_ACTION_DATE"}],"INDEXES":[]}],"STRUCTURE":[],"TABLE_TYPE":[]}]}
+This is the first version of this object.
+
+LINE 1: + *&---------------------------------------------------------------------*
+LINE 2: + *& Report  ZPCG1Z_CMS_PURGE_MAIN_010
+LINE 3: + *&
+LINE 4: + *&---------------------------------------------------------------------*
+LINE 5: + * Description : This report is used to purge table
+LINE 6: + *&---------------------------------------------------------------------*
+LINE 7: + * Date of creation : 25/08/2026 / DCSK9A7DFT  / Author : Sopra Steria  *
+LINE 8: + *----------------------------------------------------------------------*
+LINE 9: + *                       Modification History                           *
+LINE 10: + *----------------------------------------------------------------------*
+LINE 11: + * Date     / User Name   / Transport Request                           *
+LINE 12: + *----------------------------------------------------------------------*
+LINE 13: +
+LINE 14: + REPORT zpcg1z_cms_purge_main_010 LINE-SIZE 132
+LINE 15: +                                  LINE-COUNT 65
+LINE 16: +                                  NO STANDARD PAGE HEADING
+LINE 17: +                                  MESSAGE-ID zcg1.
+LINE 18: +
+LINE 19: + INCLUDE zpcg1i_cms_purge_main_010_top.
+LINE 20: + INCLUDE zpcg1i_cms_purge_main_010_scr.
+LINE 21: + INCLUDE zpcg1i_cms_purge_main_010_f01.
+LINE 22: +
+LINE 23: +
+LINE 24: + START-OF-SELECTION.
+LINE 25: +   PERFORM main_process.
+

@@ -1,0 +1,459 @@
+FUNCTION zcr_get_dependency_obj.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(II_OBJECTS) TYPE  ZPOC_TT_OBJ
+*"  EXPORTING
+*"     REFERENCE(EV_JSON) TYPE  STRING
+*"----------------------------------------------------------------------
+
+  "=============================
+  " Type Definitions
+  "=============================
+  TYPES: BEGIN OF ty_dependency,
+           type TYPE string,
+           name TYPE string,
+         END OF ty_dependency.
+
+  TYPES: ty_t_dependency TYPE STANDARD TABLE OF ty_dependency WITH EMPTY KEY.
+
+  TYPES: BEGIN OF ty_object_output,
+           type         TYPE string,
+           name         TYPE string,
+           dependencies TYPE ty_t_dependency,
+         END OF ty_object_output.
+
+  TYPES: ty_t_output TYPE STANDARD TABLE OF ty_object_output WITH EMPTY KEY.
+
+  "=============================
+  " Data Declarations
+  "=============================
+  DATA: lt_output        TYPE ty_t_output,
+        ls_output        TYPE ty_object_output,
+        ls_dep           TYPE ty_dependency,
+        ls_ddic_obj_list TYPE zpoc_ts_ddic_obj,
+        li_ddic_obj_list TYPE zpoc_tt_ddic_obj.
+
+  DATA: lt_env TYPE TABLE OF senvi,
+        ls_env TYPE senvi.
+
+  DATA: lo_writer    TYPE REF TO cl_sxml_string_writer,
+        lv_json      TYPE string,
+        lw_ddic_json TYPE string.
+
+
+  DATA: BEGIN OF ls_func,
+          funcname TYPE tfdir-funcname,
+        END OF ls_func,
+        lt_funcs LIKE TABLE OF ls_func.
+
+  DATA: BEGIN OF ls_include,
+          include TYPE d010inc-include,
+        END OF ls_include,
+        lt_includes LIKE TABLE OF ls_include.
+
+  DATA: lv_area TYPE progname.
+
+  DATA: BEGIN OF ls_method,
+          cmpname TYPE seocompo-cmpname,
+          cmptype TYPE seocompo-cmptype,
+        END OF ls_method,
+        lt_methods LIKE TABLE OF ls_method.
+
+  DATA: BEGIN OF ls_interface,
+          refclsname TYPE seometarel-refclsname,
+        END OF ls_interface,
+        lt_interfaces LIKE TABLE OF ls_interface.
+
+  DATA: BEGIN OF ls_intf_method,
+          cmpname TYPE seocompo-cmpname,
+          cmptype TYPE seocompo-cmptype,
+        END OF ls_intf_method,
+        lt_intf_methods LIKE TABLE OF ls_intf_method.
+
+  "=============================
+  " Main Processing Loop
+  "=============================
+  LOOP AT ii_objects INTO DATA(ls_input).
+
+    CLEAR: ls_output, lt_env.
+
+    ls_output-type = ls_input-obj_type.
+    ls_output-name = ls_input-object_name.
+
+    CASE ls_input-obj_type.
+      WHEN 'PROG'.
+
+        CALL FUNCTION 'REPOSITORY_ENVIRONMENT_RFC'
+          EXPORTING
+            obj_type        = ls_input-obj_type
+*           ENVIRONMENT_TYPES       =
+            object_name     = ls_input-object_name
+          TABLES
+            environment_tab = lt_env
+*           SOURCE_OBJECTS  =
+          .
+
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+
+        LOOP AT lt_env INTO ls_env.
+
+          " Skip empty entries
+          IF ls_env-object IS INITIAL.
+            CONTINUE.
+          ENDIF.
+
+          " Filter useful object types only
+*        CASE ls_env-type.
+*          WHEN 'PROG' OR 'REPS' OR 'FUGR' OR 'FUNC' OR 'TABL' OR 'CLAS' OR 'INTF'.
+
+          " Skip non-custom objects
+*          IF ls_env-object NP 'Z*' AND ls_env-object NP 'Y*'.
+*            CONTINUE.
+*          ENDIF.
+*
+*          " Keep only required types
+*          IF ls_env-type <> 'INCL' AND ls_env-type <> 'FUNC' AND ls_env-type <> 'CLAS'.
+*            CONTINUE.
+*          ENDIF.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = ls_env-type.
+          ls_dep-name = ls_env-object.
+
+          " Avoid duplicates
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc <> 0.
+            APPEND ls_dep TO ls_output-dependencies.
+          ENDIF.
+
+          "*****************************************
+          " prepare List of  DDIC Objects
+          "*****************************************
+          IF ls_env-type = 'DOMA'  OR ls_env-type = 'DTEL' OR
+             ls_env-type = 'TABL'  OR ls_env-type = 'TTYP'.
+            CLEAR: ls_ddic_obj_list.
+            ls_ddic_obj_list-obj_type = ls_env-type.
+            ls_ddic_obj_list-object_name = ls_env-object.
+            APPEND ls_ddic_obj_list TO li_ddic_obj_list.
+          ENDIF.
+
+        ENDLOOP.
+
+      WHEN 'FUGR'.
+
+        CONCATENATE 'SAPL' ls_input-object_name INTO lv_area.
+
+*****************************************
+* Get Function Modules of Function Group
+*****************************************
+        SELECT funcname
+          INTO TABLE lt_funcs
+          FROM tfdir
+          WHERE pname = lv_area.
+
+        LOOP AT lt_funcs INTO ls_func.
+
+          IF ls_func-funcname NP 'Z*'
+          AND ls_func-funcname NP 'Y*'.
+            CONTINUE.
+          ENDIF.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = 'FUNC'.
+          ls_dep-name = ls_func-funcname.
+
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc = 0.
+            CONTINUE.
+          ENDIF.
+
+          APPEND ls_dep TO ls_output-dependencies.
+
+        ENDLOOP.
+
+
+*****************************************
+* Get Includes of Function Group
+*****************************************
+        SELECT include
+          INTO TABLE lt_includes
+          FROM d010inc
+          WHERE master = lv_area.
+
+        LOOP AT lt_includes INTO ls_include.
+
+          IF ls_include-include NP '*TOP'
+          AND ls_include-include NP '*UXX'.
+            CONTINUE.
+          ENDIF.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = 'INCL'.
+          ls_dep-name = ls_include-include.
+
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc = 0.
+            CONTINUE.
+          ENDIF.
+
+          APPEND ls_dep TO ls_output-dependencies.
+
+        ENDLOOP.
+
+      WHEN 'CLAS'.
+
+        "*****************************************
+        " Get Class Methods
+        "*****************************************
+        SELECT cmpname cmptype
+          INTO TABLE lt_methods
+          FROM seocompo
+          WHERE clsname = ls_input-object_name
+            AND cmptype = '1'.
+
+        LOOP AT lt_methods INTO ls_method.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = 'METH'.
+          ls_dep-name = ls_method-cmpname.
+
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc = 0.
+            CONTINUE.
+          ENDIF.
+
+          APPEND ls_dep TO ls_output-dependencies.
+
+        ENDLOOP.
+
+
+        "*****************************************
+        " Get Implemented Interfaces
+        "*****************************************
+        SELECT refclsname
+          INTO TABLE lt_interfaces
+          FROM seometarel
+          WHERE clsname = ls_input-object_name
+            AND reltype = '1'.
+
+        LOOP AT lt_interfaces INTO ls_interface.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = 'INTF'.
+          ls_dep-name = ls_interface-refclsname.
+
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc = 0.
+            CONTINUE.
+          ENDIF.
+
+          APPEND ls_dep TO ls_output-dependencies.
+
+        ENDLOOP.
+
+
+      WHEN 'INTF'.
+
+        "*****************************************
+        " Get Interface Methods
+        "*****************************************
+        SELECT cmpname cmptype
+          INTO TABLE lt_intf_methods
+          FROM seocompo
+          WHERE clsname = ls_input-object_name
+            AND cmptype = '1'.
+
+        LOOP AT lt_intf_methods INTO ls_intf_method.
+
+          CLEAR ls_dep.
+
+          ls_dep-type = 'METH'.
+
+          CONCATENATE ls_input-object_name
+                      '~'
+                      ls_intf_method-cmpname
+                 INTO ls_dep-name.
+
+          READ TABLE ls_output-dependencies
+            WITH KEY type = ls_dep-type
+                     name = ls_dep-name
+            TRANSPORTING NO FIELDS.
+
+          IF sy-subrc = 0.
+            CONTINUE.
+          ENDIF.
+
+          APPEND ls_dep TO ls_output-dependencies.
+
+        ENDLOOP.
+
+      WHEN 'DOMA' OR  'DTEL' OR 'TABL' OR 'TTYP'.
+        "*****************************************
+        " prepare List of  DDIC Objects
+        "*****************************************
+        CLEAR: ls_ddic_obj_list.
+        ls_ddic_obj_list-obj_type = ls_input-obj_type.
+        ls_ddic_obj_list-object_name = ls_input-object_name.
+        APPEND ls_ddic_obj_list TO li_ddic_obj_list.
+        CONTINUE.
+    ENDCASE.
+
+    APPEND ls_output TO lt_output.
+
+  ENDLOOP.
+
+  "=============================
+  " Convert to JSON
+  "=============================
+
+*    ev_json = /ui2/cl_json=>serialize(
+*      data        = lt_output
+*    ).
+
+  lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
+
+  CALL TRANSFORMATION id
+    SOURCE data = lt_output
+    RESULT XML lo_writer.
+
+  lv_json = cl_abap_codepage=>convert_from( lo_writer->get_output( ) ).
+
+  IF  li_ddic_obj_list IS NOT INITIAL.
+** Here We are retriving all the DDIC Objects in JSON format
+    CALL FUNCTION 'Z_GET_DDIC_INFO'
+      EXPORTING
+        ii_objects = li_ddic_obj_list
+      IMPORTING
+        ew_json    = lw_ddic_json.
+
+* Merging DDIC JSON to output JSON
+    REPLACE FIRST OCCURRENCE OF '}' IN lv_json WITH ','.
+    SHIFT lw_ddic_json LEFT DELETING LEADING '{'.
+    ev_json = lv_json && lw_ddic_json.
+
+  ELSE.
+    ev_json  = lv_json.
+  ENDIF.
+
+*  " Just for demo purpose during development.
+*  cl_demo_output=>display_json( ev_json ).
+
+
+*    IF ls_input-obj_type = 'CLAS'.
+*   WHEN 'CLAS'.
+*
+*    DATA: lt_subclasses TYPE  SEOR_INHERITANCE_KEYS,
+*          ls_subclass   TYPE SEOR_INHERITANCE_KEY.
+*
+*    DATA: ls_clskey TYPE seoclskey.
+*
+*    ls_clskey-clsname = ls_input-object_name.
+*
+*
+*    CALL FUNCTION 'SEO_CLASS_GET_ALL_SUBS'
+*     EXPORTING
+*      CLSKEY                   = ls_clskey
+**     VERSION                  = '0'
+*     IMPORTING
+*      INHKEYS                  = lt_subclasses
+*    EXCEPTIONS
+*     CLASS_NOT_EXISTING       = 1
+*     OTHERS                   = 2
+*          .
+*
+*     IF sy-subrc = 0.
+*
+*       LOOP AT lt_subclasses INTO ls_subclass.
+*
+*       DATA(ls_dep_c) = VALUE ty_dependency(
+*        type = 'CLAS'
+*        name = ls_subclass-CLSNAME
+*      ).
+*
+*      " Avoid duplicates
+*      READ TABLE ls_output-dependencies
+*        WITH KEY type = ls_dep_c-type
+*                 name = ls_dep_c-name
+*        TRANSPORTING NO FIELDS.
+*
+*      IF sy-subrc <> 0.
+*        APPEND ls_dep_c TO ls_output-dependencies.
+*      ENDIF.
+*
+*    ENDLOOP.
+*
+*  ENDIF.
+*
+*
+* DATA: ls_clskey2 TYPE seoclskey.
+*
+*    ls_clskey2-clsname = ls_input-object_name.
+*
+*DATA: lt_includes TYPE SEOP_METHODS_W_INCLUDE,
+*      ls_include TYPE SEOP_METHOD_W_INCLUDE.
+*
+*  CALL FUNCTION 'SEO_CLASS_GET_METHOD_INCLUDES'
+*    EXPORTING
+*      CLSKEY                             = ls_clskey2
+*   IMPORTING
+*     INCLUDES                           = lt_includes
+*   EXCEPTIONS
+*     _INTERNAL_CLASS_NOT_EXISTING       = 1
+*     OTHERS                             = 2
+*            .
+*
+*IF sy-subrc = 0.
+*
+*  LOOP AT lt_includes INTO ls_include.
+*
+*    DATA(ls_dep_inc) = VALUE ty_dependency(
+*      type = 'INCL'          " mark as include
+*      name = ls_include
+*    ).
+*
+*    " Avoid duplicates
+*    READ TABLE ls_output-dependencies
+*      WITH KEY type = ls_dep_inc-type
+*               name = ls_dep_inc-name
+*      TRANSPORTING NO FIELDS.
+*
+*    IF sy-subrc <> 0.
+*      APPEND ls_dep_inc TO ls_output-dependencies.
+*    ENDIF.
+*
+*  ENDLOOP.
+*
+*ENDIF.
+
+
+*ENDIF.
+
+ENDFUNCTION.

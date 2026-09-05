@@ -1,0 +1,470 @@
+FUNCTION z_get_ddic_info.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(II_OBJECTS) TYPE  ZPOC_TT_DDIC_OBJ
+*"  EXPORTING
+*"     VALUE(EW_JSON) TYPE  STRING
+*"----------------------------------------------------------------------
+  TYPES:
+    " --- Domain Types ---
+    BEGIN OF ts_domain,
+      name            TYPE domname,
+      description     TYPE string,
+      type            TYPE datatype_d,
+      size            TYPE ddleng,
+      possible_values TYPE string,
+    END OF ts_domain,
+    ti_domain TYPE TABLE OF ts_domain WITH NON-UNIQUE KEY name,
+
+    " --- Data Element Types ---
+    BEGIN OF ts_data_element,
+      name        TYPE rollname,
+      description TYPE string,
+      domain      TYPE domname,
+    END OF ts_data_element,
+    ti_data_element TYPE TABLE OF ts_data_element WITH NON-UNIQUE KEY name,
+
+    " --- Table Types ---
+    BEGIN OF ts_table_field,
+      name         TYPE fieldname,
+      key          TYPE keyflag,
+      data_element TYPE rollname,
+    END OF ts_table_field,
+    ti_table_field TYPE TABLE OF ts_table_field WITH NON-UNIQUE KEY name,
+
+    BEGIN OF ts_table_index,
+      name    TYPE indexid,
+      content TYPE string,
+    END OF ts_table_index,
+    ti_table_index TYPE TABLE OF ts_table_index WITH NON-UNIQUE KEY name,
+
+    BEGIN OF ts_table,
+      name        TYPE tabname,
+      description TYPE string,
+      type        TYPE string,
+      sm30        TYPE abap_bool,
+      lock_object TYPE viewname,
+      field       TYPE i,
+      index       TYPE i,
+      fields      TYPE ti_table_field,
+      indexes     TYPE ti_table_index,
+    END OF ts_table,
+    ti_table TYPE TABLE OF ts_table WITH NON-UNIQUE KEY name,
+
+
+
+    " --- Structure Types ---
+    BEGIN OF ts_structure_field,
+      name            TYPE fieldname,
+      data_element    TYPE rollname,
+      raw_type        TYPE datatype_d,
+      raw_size        TYPE ddleng,
+      raw_description TYPE string,
+    END OF ts_structure_field,
+    ti_structure_field TYPE TABLE OF ts_structure_field WITH NON-UNIQUE KEY name,
+
+    BEGIN OF ts_structure,
+      name          TYPE tabname,
+      description   TYPE string,
+      fields_number TYPE i,
+      fields        TYPE ti_structure_field,
+    END OF ts_structure,
+    ti_structure TYPE TABLE OF ts_structure WITH NON-UNIQUE KEY name,
+
+    " --- Table Type Types ---
+    BEGIN OF ts_table_type,
+      name        TYPE typename,
+      description TYPE string,
+      line_type   TYPE string,
+    END OF ts_table_type,
+    ti_table_type TYPE TABLE OF ts_table_type WITH NON-UNIQUE KEY name,
+
+    " --- Key Mapping Types for FAE (For All Entries) ---
+    BEGIN OF ts_doma_key,
+      domname TYPE domname,
+    END OF ts_doma_key,
+    ti_doma_key TYPE TABLE OF ts_doma_key WITH DEFAULT KEY,
+
+    BEGIN OF ts_dtel_key,
+      rollname TYPE rollname,
+    END OF ts_dtel_key,
+    ti_dtel_key TYPE TABLE OF ts_dtel_key WITH DEFAULT KEY,
+
+    BEGIN OF ts_tabl_key,
+      tabname TYPE tabname,
+    END OF ts_tabl_key,
+    ti_tabl_key TYPE TABLE OF ts_tabl_key WITH DEFAULT KEY,
+
+    BEGIN OF ts_ttyp_key,
+      typename TYPE typename,
+    END OF ts_ttyp_key,
+    ti_ttyp_key TYPE TABLE OF ts_ttyp_key WITH DEFAULT KEY,
+
+    " --- Package Info Structure ---
+    BEGIN OF ts_package_info,
+      package      TYPE devclass,
+      domain       TYPE ti_domain,
+      data_element TYPE ti_data_element,
+      table        TYPE ti_table,
+      structure    TYPE ti_structure,
+      table_type   TYPE ti_table_type,
+    END OF ts_package_info,
+    ti_package_info TYPE TABLE OF ts_package_info WITH DEFAULT KEY,
+
+    " --- JSON Root Structure Type ---
+    BEGIN OF ts_json_root,
+      packages TYPE ti_package_info,
+    END OF ts_json_root.
+
+  " ======================================================================
+  " 2. LOCAL DATA DECLARATIONS
+  " ======================================================================
+  DATA:
+    li_tadir   TYPE TABLE OF tadir,
+    li_dd01vv  TYPE TABLE OF dd01vv,
+    li_dd02vv  TYPE TABLE OF dd02vv,
+    li_dd03t   TYPE TABLE OF dd03t,
+    li_dd03vv  TYPE TABLE OF dd03vv,
+    li_dd04vvt TYPE TABLE OF dd04vvt,
+    li_dd07v   TYPE TABLE OF dd07v,
+    li_dd12v   TYPE TABLE OF dd12v,
+    li_dd17s   TYPE TABLE OF dd17s,
+    li_dd22v   TYPE TABLE OF dd22v,
+    li_dd40vv  TYPE TABLE OF dd40vv.
+
+  " Temporary Strongly-Typed Tables for FOR ALL ENTRIES
+  DATA:
+    li_doma_keys TYPE ti_doma_key,
+    li_dtel_keys TYPE ti_dtel_key,
+    li_tabl_keys TYPE ti_tabl_key,
+    li_ttyp_keys TYPE ti_ttyp_key.
+
+  DATA:
+    ls_domain          TYPE ts_domain,
+    ls_data_element    TYPE ts_data_element,
+    ls_table           TYPE ts_table,
+    ls_table_field     TYPE ts_table_field,
+    ls_table_index     TYPE ts_table_index,
+    ls_structure       TYPE ts_structure,
+    ls_structure_field TYPE ts_structure_field,
+    ls_table_type      TYPE ts_table_type,
+    ls_package_info    TYPE ts_package_info,
+    ls_json_root       TYPE ts_json_root.
+
+  DATA:
+    lw_dummy               TYPE objname,
+    lw_index_content_tmp   TYPE string,
+    lw_count_table         TYPE i,
+    lw_count_index         TYPE i,
+    lw_count_structure     TYPE i,
+    lw_count_fields_number TYPE i.
+
+  " Range table for handling dynamic packages
+  DATA:
+    lr_packages        TYPE RANGE OF devclass,
+    ls_package         LIKE LINE OF lr_packages,
+    lt_packages_unique TYPE TABLE OF devclass,
+    lv_current_package TYPE devclass.
+
+  FIELD-SYMBOLS:
+    <fs_tadir>   TYPE tadir,
+    <fs_dd01vv>  TYPE dd01vv,
+    <fs_dd07v>   TYPE dd07v,
+    <fs_dd04vvt> TYPE dd04vvt,
+    <fs_dd02vv>  TYPE dd02vv,
+    <fs_dd03vv>  TYPE dd03vv,
+    <fs_dd03t>   TYPE dd03t,
+    <fs_dd12v>   TYPE dd12v,
+    <fs_dd17s>   TYPE dd17s,
+    <fs_dd22v>   TYPE dd22v,
+    <fs_dd40vv>  TYPE dd40vv.
+
+  " ======================================================================
+  " 3. IMPLEMENTATION LOGIC
+  " ======================================================================
+
+  " --- BUILD RANGE FOR PACKAGES ---
+*  IF ii_packages IS NOT INITIAL.
+*    LOOP AT ii_packages INTO DATA(lv_pkg).
+*      ls_package-sign   = 'I'.
+*      ls_package-option = 'EQ'.
+*      ls_package-low    = lv_pkg.
+*      APPEND ls_package TO lr_packages.
+*    ENDLOOP.
+*  ENDIF.
+
+  " Default to Z* if no inputs were provided
+  IF lr_packages IS INITIAL.
+    ls_package-sign   = 'I'.
+    ls_package-option = 'CP'. " Contains Pattern
+    ls_package-low    = 'Z*'.
+    APPEND ls_package TO lr_packages.
+  ENDIF.
+
+  SELECT *
+  FROM tadir
+  INTO TABLE @li_tadir
+  FOR ALL ENTRIES IN @ii_objects
+  WHERE pgmid    = 'R3TR'
+    AND object   = @ii_objects-obj_type
+    AND obj_name = @ii_objects-object_name.
+
+*  SELECT *
+*    FROM tadir
+*    INTO TABLE @li_tadir
+*    WHERE object   IN @ii_object_type_range
+*      AND obj_name IN @ii_object_name_range
+*      AND pgmid    = 'R3TR'
+*      AND object   IN ('DOMA', 'DTEL', 'TABL', 'TTYP').
+
+  " Ensure li_tadir is not empty before executing further logic
+  IF sy-subrc <> 0 OR li_tadir IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  " MAP TO STRONGLY TYPED KEYS FOR 'FOR ALL ENTRIES' & EXTRACT UNIQUE PACKAGES
+  LOOP AT li_tadir ASSIGNING <fs_tadir>.
+    APPEND <fs_tadir>-devclass TO lt_packages_unique. " Collect package names
+
+    CASE <fs_tadir>-object.
+      WHEN 'DOMA'.
+        APPEND VALUE #( domname = <fs_tadir>-obj_name ) TO li_doma_keys.
+      WHEN 'DTEL'.
+        APPEND VALUE #( rollname = <fs_tadir>-obj_name ) TO li_dtel_keys.
+      WHEN 'TABL'.
+        APPEND VALUE #( tabname = <fs_tadir>-obj_name ) TO li_tabl_keys.
+      WHEN 'TTYP'.
+        APPEND VALUE #( typename = <fs_tadir>-obj_name ) TO li_ttyp_keys.
+    ENDCASE.
+  ENDLOOP.
+
+  " Deduplicate the collected package names
+  SORT lt_packages_unique.
+  DELETE ADJACENT DUPLICATES FROM lt_packages_unique.
+
+  " BULK FETCH ALL DDIC DATA USING STRICT TYPES
+  IF li_doma_keys IS NOT INITIAL.
+    SELECT * FROM dd01vv INTO TABLE @li_dd01vv FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname.
+    IF sy-subrc <> 0. CLEAR li_dd01vv. ENDIF.
+
+    SELECT * FROM dd07v  INTO TABLE @li_dd07v  FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname.
+    IF sy-subrc <> 0. CLEAR li_dd07v. ENDIF.
+  ENDIF.
+
+  IF li_dtel_keys IS NOT INITIAL.
+    SELECT * FROM dd04vvt INTO TABLE @li_dd04vvt FOR ALL ENTRIES IN @li_dtel_keys WHERE rollname = @li_dtel_keys-rollname.
+    IF sy-subrc <> 0. CLEAR li_dd04vvt. ENDIF.
+  ENDIF.
+
+  IF li_tabl_keys IS NOT INITIAL.
+    SELECT * FROM dd02vv INTO TABLE @li_dd02vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd02vv. ENDIF.
+
+    SELECT * FROM dd03vv INTO TABLE @li_dd03vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd03vv. ENDIF.
+
+    SELECT * FROM dd03t  INTO TABLE @li_dd03t  FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd03t. ENDIF.
+
+    SELECT * FROM dd12v  INTO TABLE @li_dd12v  FOR ALL ENTRIES IN @li_tabl_keys WHERE sqltab = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd12v. ENDIF.
+
+    SELECT * FROM dd17s  INTO TABLE @li_dd17s  FOR ALL ENTRIES IN @li_tabl_keys WHERE sqltab = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd17s. ENDIF.
+
+    SELECT * FROM dd22v  INTO TABLE @li_dd22v  FOR ALL ENTRIES IN @li_tabl_keys WHERE roottab = @li_tabl_keys-tabname.
+    IF sy-subrc <> 0. CLEAR li_dd22v. ENDIF.
+  ENDIF.
+
+  IF li_ttyp_keys IS NOT INITIAL.
+    SELECT * FROM dd40vv INTO TABLE @li_dd40vv FOR ALL ENTRIES IN @li_ttyp_keys WHERE typename = @li_ttyp_keys-typename.
+    IF sy-subrc <> 0. CLEAR li_dd40vv. ENDIF.
+  ENDIF.
+
+  " Sort arrays for binary searches
+  SORT li_dd01vv  BY domname.
+  SORT li_dd04vvt BY rollname.
+  SORT li_dd02vv  BY tabname.
+  SORT li_dd22v   BY roottab.
+  SORT li_dd03t   BY tabname fieldname.
+  SORT li_dd40vv  BY typename.
+
+  " ======================================================================
+  " 4. GROUP DATA BY PACKAGE
+  " ======================================================================
+  LOOP AT lt_packages_unique INTO lv_current_package.
+    CLEAR ls_package_info.
+    ls_package_info-package = lv_current_package.
+
+    " BUILD DOMAINS FOR CURRENT PACKAGE
+    LOOP AT li_tadir ASSIGNING <fs_tadir> WHERE devclass = lv_current_package AND object = 'DOMA'.
+      READ TABLE li_dd01vv ASSIGNING <fs_dd01vv> WITH KEY domname = <fs_tadir>-obj_name BINARY SEARCH.
+      IF sy-subrc = 0.
+        CLEAR ls_domain.
+        ls_domain-name        = <fs_dd01vv>-domname.
+        ls_domain-description = replace( val = <fs_dd01vv>-ddtext sub = cl_abap_char_utilities=>cr_lf with = ` ` occ = 0 ).
+        ls_domain-description = replace( val = ls_domain-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
+        ls_domain-type        = <fs_dd01vv>-datatype.
+        ls_domain-size       = <fs_dd01vv>-leng.
+
+        LOOP AT li_dd07v ASSIGNING <fs_dd07v> WHERE domname = <fs_dd01vv>-domname.
+          IF ls_domain-possible_values IS INITIAL.
+            ls_domain-possible_values = <fs_dd07v>-domvalue_l.
+          ELSE.
+            ls_domain-possible_values = ls_domain-possible_values && ';' && <fs_dd07v>-domvalue_l.
+          ENDIF.
+        ENDLOOP.
+
+        APPEND ls_domain TO ls_package_info-domain.
+      ENDIF.
+    ENDLOOP.
+    SORT ls_package_info-domain BY name.
+
+    " BUILD DATA ELEMENTS FOR CURRENT PACKAGE
+    LOOP AT li_tadir ASSIGNING <fs_tadir> WHERE devclass = lv_current_package AND object = 'DTEL'.
+      READ TABLE li_dd04vvt ASSIGNING <fs_dd04vvt> WITH KEY rollname = <fs_tadir>-obj_name BINARY SEARCH.
+      IF sy-subrc = 0.
+        CLEAR ls_data_element.
+        ls_data_element-name        = <fs_dd04vvt>-rollname.
+        ls_data_element-description = replace( val = <fs_dd04vvt>-ddtext sub = cl_abap_char_utilities=>cr_lf with = ` ` occ = 0 ).
+        ls_data_element-description = replace( val = ls_data_element-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
+        ls_data_element-domain     = <fs_dd04vvt>-domname.
+        APPEND ls_data_element TO ls_package_info-data_element.
+      ENDIF.
+    ENDLOOP.
+    SORT ls_package_info-data_element BY name.
+
+    " BUILD TABLES & STRUCTURES FOR CURRENT PACKAGE
+    LOOP AT li_tadir ASSIGNING <fs_tadir> WHERE devclass = lv_current_package AND object = 'TABL'.
+      READ TABLE li_dd02vv ASSIGNING <fs_dd02vv> WITH KEY tabname = <fs_tadir>-obj_name BINARY SEARCH.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+      " --- PROCESS TRANSPARENT TABLE ---
+      IF <fs_dd02vv>-tabclass = 'TRANSP'.
+        CLEAR ls_table.
+        ls_table-name        = <fs_tadir>-obj_name.
+        ls_table-description = replace( val = <fs_dd02vv>-ddtext sub = cl_abap_char_utilities=>cr_lf with = ` ` occ = 0 ).
+        ls_table-description = replace( val = ls_table-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
+        ls_table-type        = <fs_dd02vv>-contflag.
+
+        " SM30 Check
+        SELECT SINGLE obj_name FROM tadir INTO @lw_dummy
+          WHERE pgmid = 'R3TR' AND object = 'FUGR' AND obj_name = @ls_table-name.
+        IF sy-subrc = 0.
+          ls_table-sm30 = abap_true.
+        ENDIF.
+
+        " Lock Object
+        READ TABLE li_dd22v ASSIGNING <fs_dd22v> WITH KEY roottab = ls_table-name BINARY SEARCH.
+        IF sy-subrc = 0.
+          ls_table-lock_object = <fs_dd22v>-viewname.
+        ENDIF.
+
+        " Fields
+        CLEAR lw_count_table.
+        LOOP AT li_dd03vv ASSIGNING <fs_dd03vv> WHERE tabname = ls_table-name.
+          lw_count_fields_number = lw_count_fields_number + 1.
+          CLEAR ls_table_field.
+          ls_table_field-name = <fs_dd03vv>-fieldname.
+          ls_table_field-key = <fs_dd03vv>-keyflag.
+
+          IF <fs_dd03vv>-fieldname = '.INCLUDE'.
+            ls_table_field-data_element = <fs_dd03vv>-precfield.
+          ELSE.
+            ls_table_field-data_element = <fs_dd03vv>-rollname.
+            lw_count_table = lw_count_table + 1.
+          ENDIF.
+
+          APPEND ls_table_field TO ls_table-fields.
+        ENDLOOP.
+        ls_table-field = lw_count_table.
+
+        " Indexes
+        CLEAR lw_count_index.
+        LOOP AT li_dd12v ASSIGNING <fs_dd12v> WHERE sqltab = ls_table-name.
+          CLEAR ls_table_index.
+          ls_table_index-name = <fs_dd12v>-indexname.
+          CLEAR lw_index_content_tmp.
+
+          LOOP AT li_dd17s ASSIGNING <fs_dd17s> WHERE sqltab = ls_table-name AND indexname = <fs_dd12v>-indexname.
+            lw_index_content_tmp = lw_index_content_tmp && <fs_dd17s>-fieldname && ` `.
+          ENDLOOP.
+
+          ls_table_index-content = lw_index_content_tmp.
+          lw_count_index = lw_count_index + 1.
+          APPEND ls_table_index TO ls_table-indexes.
+        ENDLOOP.
+        ls_table-index = lw_count_index.
+
+        APPEND ls_table TO ls_package_info-table.
+
+        " --- PROCESS STRUCTURE ---
+      ELSEIF <fs_dd02vv>-tabclass = 'INTTAB'.
+        CLEAR ls_structure.
+        ls_structure-name        = <fs_tadir>-obj_name.
+        ls_structure-description = replace( val = <fs_dd02vv>-ddtext sub = cl_abap_char_utilities=>cr_lf with = ` ` occ = 0 ).
+        ls_structure-description = replace( val = ls_structure-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
+
+        " Structure Fields
+        CLEAR lw_count_structure.
+        LOOP AT li_dd03vv ASSIGNING <fs_dd03vv> WHERE tabname = ls_structure-name.
+          CLEAR ls_structure_field.
+          ls_structure_field-name = <fs_dd03vv>-fieldname.
+
+          IF <fs_dd03vv>-fieldname = '.INCLUDE'.
+            ls_structure_field-data_element = <fs_dd03vv>-precfield.
+          ELSE.
+            ls_structure_field-data_element = <fs_dd03vv>-rollname.
+            lw_count_structure = lw_count_structure + 1.
+          ENDIF.
+
+          ls_structure_field-raw_type = <fs_dd03vv>-datatype.
+          ls_structure_field-raw_size = <fs_dd03vv>-leng.
+
+          " Get raw description
+          READ TABLE li_dd03t ASSIGNING <fs_dd03t> WITH KEY tabname = <fs_dd03vv>-tabname fieldname = <fs_dd03vv>-fieldname BINARY SEARCH.
+          IF sy-subrc = 0.
+            ls_structure_field-raw_description = <fs_dd03t>-ddtext.
+          ENDIF.
+
+          APPEND ls_structure_field TO ls_structure-fields.
+        ENDLOOP.
+        ls_structure-fields_number = lw_count_structure.
+
+        APPEND ls_structure TO ls_package_info-structure.
+      ENDIF.
+    ENDLOOP.
+    SORT ls_package_info-table BY name.
+    SORT ls_package_info-structure BY name.
+
+    " BUILD TABLE TYPES FOR CURRENT PACKAGE
+    LOOP AT li_tadir ASSIGNING <fs_tadir> WHERE devclass = lv_current_package AND object = 'TTYP'.
+      READ TABLE li_dd40vv ASSIGNING <fs_dd40vv> WITH KEY typename = <fs_tadir>-obj_name BINARY SEARCH.
+      IF sy-subrc = 0.
+        CLEAR ls_table_type.
+        ls_table_type-name        = <fs_tadir>-obj_name.
+        ls_table_type-description = replace( val = <fs_dd40vv>-ddtext sub = cl_abap_char_utilities=>cr_lf with = ` ` occ = 0 ).
+        ls_table_type-description = replace( val = ls_table_type-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
+        ls_table_type-line_type   = <fs_dd40vv>-rowtype.
+        APPEND ls_table_type TO ls_package_info-table_type.
+      ENDIF.
+    ENDLOOP.
+    SORT ls_package_info-table_type BY name.
+
+    " Append this complete package structure to the root table
+    APPEND ls_package_info TO ls_json_root-packages.
+  ENDLOOP.
+
+  " ======================================================================
+  " 5. JSON SERIALIZATION
+  " ======================================================================
+  ew_json = /ui2/cl_json=>serialize(
+    data = ls_json_root
+  ).
+
+*  cl_demo_output=>display( ew_json ).
+
+ENDFUNCTION.
