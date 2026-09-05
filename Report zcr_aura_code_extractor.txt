@@ -1098,12 +1098,19 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
         lv_text          TYPE string,
         lv_w1            TYPE string,
         lv_w2            TYPE string,
+        lv_line_no       TYPE i,
         ls_unified       TYPE ts_unified,
         ls_output        TYPE ts_output.
 
   CLEAR: lt_block_buffer, lv_in_block, lv_block_changed.
 
   LOOP AT it_unified INTO ls_unified.
+
+    " Capture the real line number FIRST - the block-header APPEND below
+    " (into LT_BLOCK_BUFFER, a different table) resets SY-TABIX as a
+    " side effect, which previously corrupted the "LINE n" label on the
+    " very first line of every block (always showed as "LINE 1").
+    lv_line_no = sy-tabix.
 
     lv_text = ls_unified-line.
     CONDENSE lv_text.
@@ -1134,16 +1141,16 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
     CLEAR ls_output.
     CASE ls_unified-flag.
       WHEN 'I'.
-        ls_output-line = |LINE { sy-tabix }: + { ls_unified-line }|.
+        ls_output-line = |LINE { lv_line_no }: + { ls_unified-line }|.
         lv_block_changed = abap_true.
       WHEN 'D'.
-        ls_output-line = |LINE { sy-tabix }: - { ls_unified-line }|.
+        ls_output-line = |LINE { lv_line_no }: - { ls_unified-line }|.
         lv_block_changed = abap_true.
       WHEN '~'.
-        ls_output-line = |LINE { sy-tabix }: ~ { ls_unified-line }|.
+        ls_output-line = |LINE { lv_line_no }: ~ { ls_unified-line }|.
         lv_block_changed = abap_true.
       WHEN OTHERS.
-        ls_output-line = |LINE { sy-tabix }: = { ls_unified-line }|.
+        ls_output-line = |LINE { lv_line_no }: = { ls_unified-line }|.
     ENDCASE.
 
     IF lv_in_block = abap_true.
