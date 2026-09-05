@@ -65,6 +65,7 @@ TYPES: BEGIN OF ts_multi_obj,
          cur_versno     TYPE vrsd-versno,
          cur_display    TYPE string,
          cmp_versno     TYPE vrsd-versno,
+         cellcolor      TYPE lvc_t_scol,
        END OF ts_multi_obj,
        tt_multi_obj TYPE STANDARD TABLE OF ts_multi_obj WITH EMPTY KEY.
 
@@ -1534,6 +1535,7 @@ FORM create_multi_tr_alv.
   PERFORM build_multi_tr_fieldcat CHANGING lt_fieldcat.
 
   ls_layout-cwidth_opt = abap_true.
+  ls_layout-ctab_fname = 'CELLCOLOR'.
 
   go_alv_grid->set_table_for_first_display(
     EXPORTING
@@ -1599,26 +1601,37 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Screen-level gate, called from MODULE USER_COMMAND_9000 when
 *       EXEC is pressed: validates every checked row's CMP_VERSNO
-*       up front. If any are invalid, shows an error message and sets
-*       GV_ERROR so the caller can CHECK it and stay on screen 9000
-*       for correction, instead of writing anything to the output file.
+*       up front. If any are invalid, red-highlights that cell, shows
+*       an error message, and sets GV_ERROR so the caller can CHECK it
+*       and stay on screen 9000 for correction, instead of writing
+*       anything to the output file.
 *&---------------------------------------------------------------------*
 FORM validate_checked_versions.
   DATA: lv_valid     TYPE abap_bool,
         lv_bad_count TYPE i,
-        lv_bad_name  TYPE string.
+        lv_bad_name  TYPE string,
+        ls_stable    TYPE lvc_s_stbl.
 
   CLEAR gv_error.
 
-  LOOP AT gt_multi_obj INTO DATA(ls_multi) WHERE checked = abap_true.
-    PERFORM validate_compare_version USING ls_multi CHANGING lv_valid.
+  " Clear any highlighting left over from a previous failed attempt, so
+  " a row that's since been corrected loses its red highlight too.
+  LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_reset>).
+    CLEAR <fs_reset>-cellcolor.
+  ENDLOOP.
+
+  LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_multi>) WHERE checked = abap_true.
+    PERFORM validate_compare_version USING <fs_multi> CHANGING lv_valid.
 
     IF lv_valid = abap_false.
       gv_error = abap_true.
       lv_bad_count = lv_bad_count + 1.
       IF lv_bad_name IS INITIAL.
-        lv_bad_name = ls_multi-obj_display.
+        lv_bad_name = <fs_multi>-obj_display.
       ENDIF.
+
+      APPEND VALUE #( fname = 'CMP_VERSNO' color = VALUE #( col = 6 int = 1 inv = 0 ) )
+             TO <fs_multi>-cellcolor.
     ENDIF.
   ENDLOOP.
 
@@ -1630,6 +1643,12 @@ FORM validate_checked_versions.
       MESSAGE |{ lv_bad_count } rows have an invalid compare version (e.g. { lv_bad_name }). Please correct them.|
         TYPE 'S' DISPLAY LIKE 'E'.
     ENDIF.
+  ENDIF.
+
+  IF go_alv_grid IS BOUND.
+    ls_stable-row = abap_true.
+    ls_stable-col = abap_true.
+    go_alv_grid->refresh_table_display( is_stable = ls_stable ).
   ENDIF.
 ENDFORM.
 
