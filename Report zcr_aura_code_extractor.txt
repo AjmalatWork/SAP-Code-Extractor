@@ -45,16 +45,11 @@ TYPES: BEGIN OF ts_e070_recency,
        END OF ts_e070_recency.
 
 " One raw "object found in transport X" hit, before dedup across TRs.
-" TRKORR is the top-level TR the user entered in SO_TR (what gets shown
-" to them); SUBTASK is the actual E071-TRKORR that owns this specific
-" object entry, needed to match against VRSD-KORRNUM later (a version's
-" owning request is normally the subtask, not the parent Request).
 TYPES: BEGIN OF ts_tr_hit,
          pgmid    TYPE e071-pgmid,
          object   TYPE e071-object,
          obj_name TYPE e071-obj_name,
          trkorr   TYPE e070-trkorr,
-         subtask  TYPE e070-trkorr,
        END OF ts_tr_hit,
        tt_tr_hit TYPE STANDARD TABLE OF ts_tr_hit WITH EMPTY KEY.
 
@@ -66,7 +61,6 @@ TYPES: BEGIN OF ts_multi_obj,
          obj_name       TYPE e071-obj_name,
          obj_display    TYPE string,
          tr_list        TYPE string,
-         tr_hits        TYPE tt_tr_hit,
          most_recent_tr TYPE e070-trkorr,
          cur_versno     TYPE vrsd-versno,
          cur_display    TYPE string,
@@ -1342,8 +1336,7 @@ FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
       APPEND VALUE #( pgmid    = 'LIMU'
                        object   = 'METH'
                        obj_name = |{ ls_meth-clsname WIDTH = 30 }{ ls_meth-cmpname }|
-                       trkorr   = ls_clas_hit-trkorr
-                       subtask  = ls_clas_hit-subtask ) TO lt_new_hits.
+                       trkorr   = ls_clas_hit-trkorr ) TO lt_new_hits.
     ENDLOOP.
   ENDLOOP.
 
@@ -1385,8 +1378,7 @@ FORM collect_tr_hits USING iv_trkorr TYPE e070-trkorr
     APPEND VALUE #( pgmid    = <fs_e071>-pgmid
                      object   = <fs_e071>-object
                      obj_name = <fs_e071>-obj_name
-                     trkorr   = iv_trkorr
-                     subtask  = <fs_e071>-trkorr ) TO ct_hits.
+                     trkorr   = iv_trkorr ) TO ct_hits.
   ENDLOOP.
 ENDFORM.
 
@@ -1413,8 +1405,7 @@ FORM build_unique_multi_objects USING it_hits TYPE tt_tr_hit.
     ls_multi-obj_display = |{ ls_unique-obj_name } { ls_unique-object }|.
 
     PERFORM build_tr_list USING ls_unique-object ls_unique-obj_name it_hits
-                           CHANGING ls_multi-tr_list ls_multi-most_recent_tr
-                                    ls_multi-tr_hits.
+                           CHANGING ls_multi-tr_list ls_multi-most_recent_tr.
 
     APPEND ls_multi TO gt_multi_obj.
   ENDLOOP.
@@ -1424,30 +1415,24 @@ ENDFORM.
 *&      Form  BUILD_TR_LIST
 *&---------------------------------------------------------------------*
 *       For one object, builds the comma-separated list of entered TRs
-*       it appeared in (fallback text, later replaced with a version-
-*       annotated version by ANNOTATE_TR_VERSIONS once the object's
-*       version list is available), determines the most recent TR by
-*       E070-AS4DATE/AS4TIME, and returns the raw matching hits
-*       (CT_MATCHING_HITS) so ANNOTATE_TR_VERSIONS can look up each
-*       hit's version later.
+*       it appeared in, and determines the most recent one by
+*       E070-AS4DATE/AS4TIME (last-changed/released timestamp).
 *&---------------------------------------------------------------------*
 FORM build_tr_list USING iv_object    TYPE e071-object
                           iv_obj_name TYPE e071-obj_name
                           it_hits     TYPE tt_tr_hit
                    CHANGING cv_tr_list       TYPE string
-                            cv_most_recent   TYPE e070-trkorr
-                            ct_matching_hits TYPE tt_tr_hit.
+                            cv_most_recent   TYPE e070-trkorr.
   DATA: lt_matching  TYPE STANDARD TABLE OF e070-trkorr,
         lt_e070      TYPE STANDARD TABLE OF ts_e070_recency,
         ls_e070      TYPE ts_e070_recency,
         lv_best_date TYPE e070-as4date,
         lv_best_time TYPE e070-as4time.
 
-  CLEAR: cv_tr_list, cv_most_recent, ct_matching_hits, lv_best_date, lv_best_time.
+  CLEAR: cv_tr_list, cv_most_recent, lv_best_date, lv_best_time.
 
   LOOP AT it_hits INTO DATA(ls_hit) WHERE object = iv_object AND obj_name = iv_obj_name.
     APPEND ls_hit-trkorr TO lt_matching.
-    APPEND ls_hit TO ct_matching_hits.
     IF cv_tr_list IS INITIAL.
       cv_tr_list = ls_hit-trkorr.
     ELSE.
@@ -1482,10 +1467,9 @@ ENDFORM.
 *       DETERMINE_COMPARISON_MODE).
 *&---------------------------------------------------------------------*
 FORM enrich_multi_objects.
-  DATA: lv_object_type  TYPE e071-object,
-        lv_obj_name     TYPE vrsd-objname,
-        lt_version_list TYPE tt_vrsd,
-        lv_skip         TYPE abap_bool.
+  DATA: lv_object_type TYPE e071-object,
+        lv_obj_name    TYPE vrsd-objname,
+        lv_skip        TYPE abap_bool.
 
   LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_multi>).
     lv_object_type = <fs_multi>-object.
@@ -1503,54 +1487,12 @@ FORM enrich_multi_objects.
     PERFORM get_default_versions USING lv_obj_name lv_object_type
                                   CHANGING <fs_multi>-cur_versno
                                            <fs_multi>-cmp_versno
-                                           lt_version_list
                                            lv_skip.
 
     IF lv_skip = abap_true.
       <fs_multi>-cur_display = 'No version history found'.
     ELSE.
       <fs_multi>-cur_display = |Version { <fs_multi>-cur_versno } (TR: { <fs_multi>-most_recent_tr })|.
-
-      " Re-render TR_LIST with each TR's version in brackets, now that
-      " the object's version list is available.
-      PERFORM annotate_tr_versions USING lt_version_list <fs_multi>-tr_hits
-                                    CHANGING <fs_multi>-tr_list.
-    ENDIF.
-  ENDLOOP.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
-*&      Form  ANNOTATE_TR_VERSIONS
-*&---------------------------------------------------------------------*
-*       Rebuilds the "TRs Appeared In" text with each TR's version
-*       shown in brackets next to it, e.g. "TR1 (002), TR2 (003)".
-*       Matches each hit's SUBTASK (the actual owning E071-TRKORR, not
-*       the top-level entered TR) against VRSD-KORRNUM - a version's
-*       owning request is normally the subtask, not the parent Request.
-*       If no version can be matched for a given TR (e.g. the change
-*       never produced a distinct version entry on its own), that TR is
-*       shown without a bracket rather than blocking the whole column.
-*&---------------------------------------------------------------------*
-FORM annotate_tr_versions USING it_version_list TYPE tt_vrsd
-                                it_tr_hits      TYPE tt_tr_hit
-                         CHANGING cv_tr_list TYPE string.
-  DATA: ls_ver   TYPE vrsd,
-        lv_entry TYPE string.
-
-  CLEAR cv_tr_list.
-
-  LOOP AT it_tr_hits INTO DATA(ls_hit).
-    READ TABLE it_version_list INTO ls_ver WITH KEY korrnum = ls_hit-subtask.
-    IF sy-subrc = 0.
-      lv_entry = |{ ls_hit-trkorr } ({ ls_ver-versno })|.
-    ELSE.
-      lv_entry = ls_hit-trkorr.
-    ENDIF.
-
-    IF cv_tr_list IS INITIAL.
-      cv_tr_list = lv_entry.
-    ELSE.
-      cv_tr_list = |{ cv_tr_list }, { lv_entry }|.
     ENDIF.
   ENDLOOP.
 ENDFORM.
@@ -1567,31 +1509,31 @@ ENDFORM.
 *       SINGLE_OBJECT already treats an initial override as "no override,
 *       auto-detect", so this flows through correctly either way.
 *&---------------------------------------------------------------------*
-FORM get_default_versions USING iv_objname      TYPE vrsd-objname
-                                 iv_object_type  TYPE e071-object
-                          CHANGING ev_cur_versno   TYPE vrsd-versno
-                                   ev_cmp_versno   TYPE vrsd-versno
-                                   et_version_list TYPE tt_vrsd
-                                   cv_skip         TYPE abap_bool.
-  DATA ls_ver TYPE vrsd.
+FORM get_default_versions USING iv_objname     TYPE vrsd-objname
+                                 iv_object_type TYPE e071-object
+                          CHANGING ev_cur_versno TYPE vrsd-versno
+                                   ev_cmp_versno TYPE vrsd-versno
+                                   cv_skip       TYPE abap_bool.
+  DATA: lt_version_list TYPE tt_vrsd,
+        ls_ver          TYPE vrsd.
 
-  CLEAR: ev_cur_versno, ev_cmp_versno, et_version_list, cv_skip.
+  CLEAR: ev_cur_versno, ev_cmp_versno, cv_skip.
 
   PERFORM get_version_list USING iv_objname iv_object_type
-                            CHANGING et_version_list cv_skip.
+                            CHANGING lt_version_list cv_skip.
   CHECK cv_skip = abap_false.
 
-  PERFORM filter_toc_versions CHANGING et_version_list.
+  PERFORM filter_toc_versions CHANGING lt_version_list.
 
-  READ TABLE et_version_list INTO ls_ver INDEX 1.
+  READ TABLE lt_version_list INTO ls_ver INDEX 1.
   IF sy-subrc <> 0.
     cv_skip = abap_true.
     RETURN.
   ENDIF.
   ev_cur_versno = ls_ver-versno.
 
-  IF rb_full IS INITIAL AND lines( et_version_list ) >= 2.
-    READ TABLE et_version_list INTO ls_ver INDEX 2.
+  IF rb_full IS INITIAL AND lines( lt_version_list ) >= 2.
+    READ TABLE lt_version_list INTO ls_ver INDEX 2.
     IF sy-subrc = 0.
       ev_cmp_versno = ls_ver-versno.
     ENDIF.
