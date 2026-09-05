@@ -7,6 +7,12 @@ FUNCTION zcr_get_dependency_obj_new.
 *"     REFERENCE(EV_JSON) TYPE  STRING
 *"     REFERENCE(EV_DDIC_JSON) TYPE  STRING
 *"----------------------------------------------------------------------
+* NOTE: subroutines (FORM) cannot be nested inside FUNCTION/ENDFUNCTION,
+* so this FM stays a single block. Repetition is instead avoided by having
+* each object-type branch below only COLLECT raw dependency candidates
+* into LT_CANDIDATES; the duplicate-check + signature enrichment + append
+* logic that used to be repeated per branch now runs exactly once, in the
+* shared loop after the CASE.
 
   "=============================
   " Type Definitions
@@ -27,12 +33,27 @@ FUNCTION zcr_get_dependency_obj_new.
 
   TYPES: ty_t_output TYPE STANDARD TABLE OF ty_object_output WITH EMPTY KEY.
 
+  " A raw dependency found by one of the branches below, before dedup/
+  " enrichment. LOOKUP_NAME is what gets passed to ZCR_GET_OBJECT_SIGNATURE
+  " (for interface methods this is the plain method name, while NAME keeps
+  " the "INTERFACE~METHOD" form expected in the output). PARENT is only
+  " set for METH candidates (owning class/interface, needed by RTTI).
+  TYPES: BEGIN OF ty_candidate,
+           type        TYPE string,
+           name        TYPE string,
+           lookup_name TYPE string,
+           parent      TYPE string,
+         END OF ty_candidate.
+
+  TYPES: ty_t_candidate TYPE STANDARD TABLE OF ty_candidate WITH EMPTY KEY.
+
   "=============================
   " Data Declarations
   "=============================
   DATA: lt_output        TYPE ty_t_output,
         ls_output        TYPE ty_object_output,
         ls_dep           TYPE ty_dependency,
+        lt_candidates    TYPE ty_t_candidate,
         ls_ddic_obj_list TYPE zpoc_ts_ddic_obj,
         li_ddic_obj_list TYPE zpoc_tt_ddic_obj.
 
@@ -73,7 +94,7 @@ FUNCTION zcr_get_dependency_obj_new.
   "=============================
   LOOP AT ii_objects INTO DATA(ls_input).
 
-    CLEAR: ls_output, lt_env.
+    CLEAR: ls_output, lt_env, lt_candidates.
 
     ls_output-type = ls_input-obj_type.
     ls_output-name = ls_input-object_name.
@@ -116,33 +137,12 @@ FUNCTION zcr_get_dependency_obj_new.
 *            CONTINUE.
 *          ENDIF.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = ls_env-type.
-          ls_dep-name = ls_env-object.
-
-          " Avoid duplicates
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc <> 0.
-            " Enrich PROG/INCL/FUNC dependencies with a signature summary.
-            " (METH dependencies discovered here have no reliable parent
-            " class name to hand to RTTI, so they stay unenriched - METH
-            " enrichment happens where we build it ourselves below.)
-            IF ls_dep-type = 'PROG' OR ls_dep-type = 'INCL' OR ls_dep-type = 'FUNC'.
-              CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
-                EXPORTING
-                  iv_obj_type    = ls_dep-type
-                  iv_object_name = ls_dep-name
-                IMPORTING
-                  es_signature   = ls_dep-signature.
-            ENDIF.
-
-            APPEND ls_dep TO ls_output-dependencies.
-          ENDIF.
+          " NOTE: METH candidates discovered here (if any) get no PARENT,
+          " so the shared enrichment step below leaves them unenriched -
+          " REPOSITORY_ENVIRONMENT_RFC doesn't reliably expose an owning
+          " class name in a form RTTI can consume.
+          APPEND VALUE #( type = ls_env-type name = ls_env-object
+                           lookup_name = ls_env-object ) TO lt_candidates.
 
           "*****************************************
           " prepare List of  DDIC Objects
@@ -176,28 +176,8 @@ FUNCTION zcr_get_dependency_obj_new.
             CONTINUE.
           ENDIF.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = 'FUNC'.
-          ls_dep-name = ls_func-funcname.
-
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc = 0.
-            CONTINUE.
-          ENDIF.
-
-          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
-            EXPORTING
-              iv_obj_type    = ls_dep-type
-              iv_object_name = ls_dep-name
-            IMPORTING
-              es_signature   = ls_dep-signature.
-
-          APPEND ls_dep TO ls_output-dependencies.
+          APPEND VALUE #( type = 'FUNC' name = ls_func-funcname
+                           lookup_name = ls_func-funcname ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -217,28 +197,8 @@ FUNCTION zcr_get_dependency_obj_new.
             CONTINUE.
           ENDIF.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = 'INCL'.
-          ls_dep-name = ls_include-include.
-
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc = 0.
-            CONTINUE.
-          ENDIF.
-
-          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
-            EXPORTING
-              iv_obj_type    = ls_dep-type
-              iv_object_name = ls_dep-name
-            IMPORTING
-              es_signature   = ls_dep-signature.
-
-          APPEND ls_dep TO ls_output-dependencies.
+          APPEND VALUE #( type = 'INCL' name = ls_include-include
+                           lookup_name = ls_include-include ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -255,29 +215,9 @@ FUNCTION zcr_get_dependency_obj_new.
 
         LOOP AT lt_methods INTO ls_method.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = 'METH'.
-          ls_dep-name = ls_method-cmpname.
-
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc = 0.
-            CONTINUE.
-          ENDIF.
-
-          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
-            EXPORTING
-              iv_obj_type    = ls_dep-type
-              iv_object_name = ls_dep-name
-              iv_parent_name = ls_input-object_name
-            IMPORTING
-              es_signature   = ls_dep-signature.
-
-          APPEND ls_dep TO ls_output-dependencies.
+          APPEND VALUE #( type = 'METH' name = ls_method-cmpname
+                           lookup_name = ls_method-cmpname
+                           parent = ls_input-object_name ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -293,21 +233,10 @@ FUNCTION zcr_get_dependency_obj_new.
 
         LOOP AT lt_interfaces INTO ls_interface.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = 'INTF'.
-          ls_dep-name = ls_interface-refclsname.
-
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc = 0.
-            CONTINUE.
-          ENDIF.
-
-          APPEND ls_dep TO ls_output-dependencies.
+          " INTF as a referenced object is not enriched (only its member
+          " methods are, when the interface itself is later processed).
+          APPEND VALUE #( type = 'INTF' name = ls_interface-refclsname
+                           lookup_name = ls_interface-refclsname ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -325,33 +254,10 @@ FUNCTION zcr_get_dependency_obj_new.
 
         LOOP AT lt_intf_methods INTO ls_intf_method.
 
-          CLEAR ls_dep.
-
-          ls_dep-type = 'METH'.
-
-          CONCATENATE ls_input-object_name
-                      '~'
-                      ls_intf_method-cmpname
-                 INTO ls_dep-name.
-
-          READ TABLE ls_output-dependencies
-            WITH KEY type = ls_dep-type
-                     name = ls_dep-name
-            TRANSPORTING NO FIELDS.
-
-          IF sy-subrc = 0.
-            CONTINUE.
-          ENDIF.
-
-          CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
-            EXPORTING
-              iv_obj_type    = ls_dep-type
-              iv_object_name = ls_intf_method-cmpname
-              iv_parent_name = ls_input-object_name
-            IMPORTING
-              es_signature   = ls_dep-signature.
-
-          APPEND ls_dep TO ls_output-dependencies.
+          APPEND VALUE #( type = 'METH'
+                           name = |{ ls_input-object_name }~{ ls_intf_method-cmpname }|
+                           lookup_name = ls_intf_method-cmpname
+                           parent = ls_input-object_name ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -365,6 +271,44 @@ FUNCTION zcr_get_dependency_obj_new.
         APPEND ls_ddic_obj_list TO li_ddic_obj_list.
         CONTINUE.
     ENDCASE.
+
+    "=============================
+    " Dedup + enrich + append (shared by every branch above)
+    "=============================
+    LOOP AT lt_candidates INTO DATA(ls_candidate).
+
+      CLEAR ls_dep.
+      ls_dep-type = ls_candidate-type.
+      ls_dep-name = ls_candidate-name.
+
+      " Avoid duplicates
+      READ TABLE ls_output-dependencies
+        WITH KEY type = ls_dep-type
+                 name = ls_dep-name
+        TRANSPORTING NO FIELDS.
+
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+
+      " Enrich PROG/INCL/FUNC/METH with a signature summary. (DOMA/DTEL/
+      " TABL/TTYP/INTF are intentionally excluded - DDIC objects get their
+      " own richer metadata from Z_GET_DDIC_INFO instead, and INTF as a
+      " referenced object has no signature of its own.)
+      IF ls_candidate-type = 'PROG' OR ls_candidate-type = 'INCL' OR
+         ls_candidate-type = 'FUNC' OR ls_candidate-type = 'METH'.
+        CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
+          EXPORTING
+            iv_obj_type    = ls_candidate-type
+            iv_object_name = ls_candidate-lookup_name
+            iv_parent_name = ls_candidate-parent
+          IMPORTING
+            es_signature   = ls_dep-signature.
+      ENDIF.
+
+      APPEND ls_dep TO ls_output-dependencies.
+
+    ENDLOOP.
 
     APPEND ls_output TO lt_output.
 
@@ -387,98 +331,5 @@ FUNCTION zcr_get_dependency_obj_new.
       IMPORTING
         ew_json    = ev_ddic_json.
   ENDIF.
-
-*  " Just for demo purpose during development.
-*  cl_demo_output=>display_json( ev_json ).
-
-
-*    IF ls_input-obj_type = 'CLAS'.
-*   WHEN 'CLAS'.
-*
-*    DATA: lt_subclasses TYPE  SEOR_INHERITANCE_KEYS,
-*          ls_subclass   TYPE SEOR_INHERITANCE_KEY.
-*
-*    DATA: ls_clskey TYPE seoclskey.
-*
-*    ls_clskey-clsname = ls_input-object_name.
-*
-*
-*    CALL FUNCTION 'SEO_CLASS_GET_ALL_SUBS'
-*     EXPORTING
-*      CLSKEY                   = ls_clskey
-**     VERSION                  = '0'
-*     IMPORTING
-*      INHKEYS                  = lt_subclasses
-*    EXCEPTIONS
-*     CLASS_NOT_EXISTING       = 1
-*     OTHERS                   = 2
-*          .
-*
-*     IF sy-subrc = 0.
-*
-*       LOOP AT lt_subclasses INTO ls_subclass.
-*
-*       DATA(ls_dep_c) = VALUE ty_dependency(
-*        type = 'CLAS'
-*        name = ls_subclass-CLSNAME
-*      ).
-*
-*      " Avoid duplicates
-*      READ TABLE ls_output-dependencies
-*        WITH KEY type = ls_dep_c-type
-*                 name = ls_dep_c-name
-*        TRANSPORTING NO FIELDS.
-*
-*      IF sy-subrc <> 0.
-*        APPEND ls_dep_c TO ls_output-dependencies.
-*      ENDIF.
-*
-*    ENDLOOP.
-*
-*  ENDIF.
-*
-*
-* DATA: ls_clskey2 TYPE seoclskey.
-*
-*    ls_clskey2-clsname = ls_input-object_name.
-*
-*DATA: lt_includes TYPE SEOP_METHODS_W_INCLUDE,
-*      ls_include TYPE SEOP_METHOD_W_INCLUDE.
-*
-*  CALL FUNCTION 'SEO_CLASS_GET_METHOD_INCLUDES'
-*    EXPORTING
-*      CLSKEY                             = ls_clskey2
-*   IMPORTING
-*     INCLUDES                           = lt_includes
-*   EXCEPTIONS
-*     _INTERNAL_CLASS_NOT_EXISTING       = 1
-*     OTHERS                             = 2
-*            .
-*
-*IF sy-subrc = 0.
-*
-*  LOOP AT lt_includes INTO ls_include.
-*
-*    DATA(ls_dep_inc) = VALUE ty_dependency(
-*      type = 'INCL'          " mark as include
-*      name = ls_include
-*    ).
-*
-*    " Avoid duplicates
-*    READ TABLE ls_output-dependencies
-*      WITH KEY type = ls_dep_inc-type
-*               name = ls_dep_inc-name
-*      TRANSPORTING NO FIELDS.
-*
-*    IF sy-subrc <> 0.
-*      APPEND ls_dep_inc TO ls_output-dependencies.
-*    ENDIF.
-*
-*  ENDLOOP.
-*
-*ENDIF.
-
-
-*ENDIF.
 
 ENDFUNCTION.
