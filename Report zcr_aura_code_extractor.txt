@@ -1412,7 +1412,7 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 FORM enrich_multi_objects.
   DATA: lv_object_type TYPE e071-object,
-        lv_obj_name    TYPE c LENGTH 120,
+        lv_obj_name    TYPE vrsd-objname,
         lv_skip        TYPE abap_bool.
 
   LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_multi>).
@@ -1423,8 +1423,9 @@ FORM enrich_multi_objects.
 
     " E071-OBJ_NAME (CHAR120) and VRSD-OBJNAME (CHAR110, GET_DEFAULT_
     " VERSIONS' formal parameter type) are different lengths - route
-    " through this temp variable rather than passing <fs_multi>-obj_name
-    " directly, which PERFORM/FORM rejects as incompatible.
+    " through this temp variable, typed to match the formal parameter
+    " exactly, rather than passing <fs_multi>-obj_name directly (which
+    " PERFORM/FORM rejects as incompatible).
     lv_obj_name = <fs_multi>-obj_name.
 
     PERFORM get_default_versions USING lv_obj_name lv_object_type
