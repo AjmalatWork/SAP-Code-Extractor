@@ -1232,8 +1232,53 @@ FORM build_multi_tr_object_list.
     RETURN.
   ENDIF.
 
+  PERFORM expand_class_methods CHANGING lt_hits.
+
   PERFORM build_unique_multi_objects USING lt_hits.
   PERFORM enrich_multi_objects.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  EXPAND_CLASS_METHODS
+*&---------------------------------------------------------------------*
+*       Multi-TR equivalent of ADD_CLASS_METHODS: for every CLAS hit in
+*       CT_HITS, also add its individual methods as METH hits - each
+*       method inherits every TR its owning class hit appeared under, so
+*       a class touched by two entered TRs gets its methods attributed
+*       to both TRs too (matching the class's own TR-list behavior).
+*       Reads a snapshot of the CLAS hits and builds new rows separately
+*       before appending once, rather than appending into CT_HITS while
+*       looping over it.
+*&---------------------------------------------------------------------*
+FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
+  DATA: lt_clas_hits  TYPE tt_tr_hit,
+        lr_class_name TYPE RANGE OF seoclsname,
+        lt_new_hits   TYPE tt_tr_hit.
+
+  lt_clas_hits = VALUE #( FOR ls_hit IN ct_hits WHERE ( object = 'CLAS' ) ( ls_hit ) ).
+  CHECK lt_clas_hits IS NOT INITIAL.
+
+  lr_class_name = VALUE #( FOR ls_clas IN lt_clas_hits
+                            ( sign = 'I' option = 'EQ' low = ls_clas-obj_name ) ).
+
+  SELECT clsname, cmpname
+    INTO TABLE @DATA(lt_methods)
+    FROM seocompo
+   WHERE clsname IN @lr_class_name
+     AND cmptype = '1'.
+
+  CHECK sy-subrc = 0.
+
+  LOOP AT lt_methods INTO DATA(ls_meth).
+    LOOP AT lt_clas_hits INTO DATA(ls_clas_hit) WHERE obj_name = ls_meth-clsname.
+      APPEND VALUE #( pgmid    = 'LIMU'
+                       object   = 'METH'
+                       obj_name = |{ ls_meth-clsname WIDTH = 30 }{ ls_meth-cmpname }|
+                       trkorr   = ls_clas_hit-trkorr ) TO lt_new_hits.
+    ENDLOOP.
+  ENDLOOP.
+
+  APPEND LINES OF lt_new_hits TO ct_hits.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
