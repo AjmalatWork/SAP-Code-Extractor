@@ -1585,12 +1585,26 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Feeds every checked row into the existing per-object pipeline,
 *       using its (possibly user-edited) CMP_VERSNO as the compare-
-*       against override. Unchecked rows are never touched.
+*       against override. Unchecked rows are never touched. A CMP_VERSNO
+*       that was typed directly (not picked via F4) and doesn't exist
+*       for that object is caught by VALIDATE_COMPARE_VERSION - that
+*       object is skipped, but a line is written to the output saying
+*       so, rather than the object silently vanishing.
 *&---------------------------------------------------------------------*
 FORM process_checked_multi_objects.
-  DATA ls_e071 TYPE e071.
+  DATA: ls_e071  TYPE e071,
+        lv_valid TYPE abap_bool.
 
   LOOP AT gt_multi_obj INTO DATA(ls_multi) WHERE checked = abap_true.
+    PERFORM validate_compare_version USING ls_multi CHANGING lv_valid.
+
+    IF lv_valid = abap_false.
+      APPEND VALUE #( line = |=========================================| ) TO gt_output.
+      APPEND VALUE #( line = |Object: { ls_multi-obj_display } - SKIPPED: version { ls_multi-cmp_versno } does not exist for this object| ) TO gt_output.
+      APPEND VALUE #( line = | | ) TO gt_output.
+      CONTINUE.
+    ENDIF.
+
     CLEAR ls_e071.
     ls_e071-pgmid    = ls_multi-pgmid.
     ls_e071-object   = ls_multi-object.
@@ -1598,6 +1612,50 @@ FORM process_checked_multi_objects.
 
     PERFORM process_single_object USING ls_e071 ls_multi-cmp_versno.
   ENDLOOP.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATE_COMPARE_VERSION
+*&---------------------------------------------------------------------*
+*       A blank CMP_VERSNO is always valid (means "no override, let
+*       PROCESS_SINGLE_OBJECT auto-detect as usual"). A non-blank one
+*       must actually exist in the object's TOC-filtered version list -
+*       this catches a bogus value typed directly into the editable
+*       cell, bypassing the F4 popup that would only ever offer real
+*       version numbers.
+*&---------------------------------------------------------------------*
+FORM validate_compare_version USING is_multi TYPE ts_multi_obj
+                              CHANGING cv_valid TYPE abap_bool.
+  DATA: lv_object_type  TYPE e071-object,
+        lv_obj_name     TYPE vrsd-objname,
+        lt_version_list TYPE tt_vrsd,
+        lv_skip         TYPE abap_bool.
+
+  IF is_multi-cmp_versno IS INITIAL.
+    cv_valid = abap_true.
+    RETURN.
+  ENDIF.
+
+  cv_valid = abap_false.
+
+  lv_object_type = is_multi-object.
+  IF lv_object_type = 'PROG'.
+    lv_object_type = 'REPS'.
+  ENDIF.
+
+  lv_obj_name = is_multi-obj_name.
+
+  PERFORM get_version_list USING lv_obj_name lv_object_type
+                            CHANGING lt_version_list lv_skip.
+  CHECK lv_skip = abap_false.
+
+  PERFORM filter_toc_versions CHANGING lt_version_list.
+
+  READ TABLE lt_version_list WITH KEY versno = is_multi-cmp_versno
+    TRANSPORTING NO FIELDS.
+  IF sy-subrc = 0.
+    cv_valid = abap_true.
+  ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
