@@ -66,13 +66,15 @@ FUNCTION zcr_get_object_signature.
 * FUNC: parameter interface + exceptions via RPY_FUNCTIONMODULE_READ_NEW
 *----------------------------------------------------------------------
     WHEN 'FUNC'.
-      DATA: lt_import     TYPE STANDARD TABLE OF rsimp,
-            lt_export     TYPE STANDARD TABLE OF rsexp,
-            lt_changing   TYPE STANDARD TABLE OF rscha,
-            lt_tables     TYPE STANDARD TABLE OF rstbl,
-            lt_exceptions TYPE STANDARD TABLE OF rsexc,
-            lt_new_source TYPE rsfb_source,
-            lv_fm_name    TYPE rs38l_fnam.
+      DATA: lt_import        TYPE STANDARD TABLE OF rsimp,
+            lt_export        TYPE STANDARD TABLE OF rsexp,
+            lt_changing      TYPE STANDARD TABLE OF rscha,
+            lt_tables        TYPE STANDARD TABLE OF rstbl,
+            lt_exceptions    TYPE STANDARD TABLE OF rsexc,
+            lt_documentation TYPE STANDARD TABLE OF rsfdo,
+            lt_source        TYPE STANDARD TABLE OF rssource,
+            lt_new_source    TYPE rsfb_source,
+            lv_fm_name       TYPE rs38l_fnam.
 
       lv_fm_name = iv_object_name.
 
@@ -85,6 +87,8 @@ FUNCTION zcr_get_object_signature.
           export_parameter   = lt_export
           tables_parameter   = lt_tables
           exception_list     = lt_exceptions
+          documentation      = lt_documentation
+          source             = lt_source
         CHANGING
           new_source         = lt_new_source
         EXCEPTIONS
