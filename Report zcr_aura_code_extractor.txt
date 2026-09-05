@@ -110,6 +110,12 @@ DATA go_alv_events TYPE REF TO lcl_alv_event_handler.
 
 CLASS lcl_alv_event_handler IMPLEMENTATION.
   METHOD on_f4.
+    " TEMP DIAGNOSTIC - remove once F4 is confirmed working end-to-end.
+    " Isolates whether the event fires at all vs. something silently
+    " failing further down (fieldname mismatch, row lookup, or one of
+    " the two FM calls below).
+    MESSAGE |ON_F4 fired, fieldname = { e_fieldname }| TYPE 'I'.
+
     " Only the "Compare Against Version" column has a custom F4.
     CHECK e_fieldname = 'CMP_VERSNO'.
 
