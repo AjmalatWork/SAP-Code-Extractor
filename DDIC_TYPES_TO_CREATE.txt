@@ -1,0 +1,41 @@
+DDIC objects to create in SE11 before activating ZCR_GET_OBJECT_SIGNATURE
+===========================================================================
+Create in this order (each references the previous one).
+
+1) Structure ZCR_TS_SIG_PARAM  ("one parameter of a signature")
+   Short text: Signature Parameter (Code Extractor)
+
+   Component   Typing Method   Component Type
+   ---------   -------------   --------------
+   NAME        Types           STRING
+   KIND        Types           STRING     " IMPORTING / EXPORTING / CHANGING / TABLES / RETURNING
+   TYPE        Types           STRING     " resolved ABAP type name, e.g. STRING, BAPIRET2, ZCL_FOO
+   OPTIONAL    Types           ABAP_BOOL
+   DEFAULT     Types           STRING     " only populated for IMPORTING/CHANGING kinds
+
+2) Table type ZCR_TT_SIG_PARAM
+   Short text: Signature Parameter Table (Code Extractor)
+   Line type: ZCR_TS_SIG_PARAM
+   Kind: Standard Table
+   (No key needed - default/standard key is fine, code only uses APPEND/LOOP.)
+
+3) Structure ZCR_TS_SIGNATURE  ("enrichment attached to one dependency")
+   Short text: Dependency Signature (Code Extractor)
+
+   Component      Typing Method   Component Type
+   ---------      -------------   --------------
+   PROGRAM_TYPE   Types           STRING          " PROG/INCL only: Executable/Include/Function Group/etc.
+   IS_INCLUDE     Types           ABAP_BOOL       " PROG/INCL only
+   PACKAGE        Types           DEVCLASS        " PROG/INCL only
+   VISIBILITY     Types           STRING          " METH (class) only: PUBLIC/PROTECTED/PRIVATE
+   IS_STATIC      Types           ABAP_BOOL       " METH only
+   PARAMETERS     Types           ZCR_TT_SIG_PARAM   " FUNC / METH
+   EXCEPTIONS     Types           STRING_TABLE    " FUNC / METH (STRING_TABLE already exists in SAP standard)
+
+Notes:
+- No DESCRIPTION field, per decision to drop short-text enrichment for all types
+  (not cheaply retrievable for CLAS/INTF methods, dropped everywhere for consistency).
+- Fields irrelevant to a given dependency's type are left blank by
+  ZCR_GET_OBJECT_SIGNATURE. The calling FM (ZCR_GET_DEPENDENCY_OBJ) serializes
+  with /ui2/cl_json=>serialize( compress = abap_true ), which drops blank/initial
+  fields from the JSON output, so each dependency's JSON only shows relevant keys.

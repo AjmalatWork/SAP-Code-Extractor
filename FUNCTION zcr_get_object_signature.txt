@@ -1,0 +1,203 @@
+FUNCTION zcr_get_object_signature.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(IV_OBJ_TYPE) TYPE  STRING
+*"     REFERENCE(IV_OBJECT_NAME) TYPE  STRING
+*"     REFERENCE(IV_PARENT_NAME) TYPE  STRING OPTIONAL
+*"  EXPORTING
+*"     REFERENCE(ES_SIGNATURE) TYPE  ZCR_TS_SIGNATURE
+*"----------------------------------------------------------------------
+* Returns a lightweight "API signature" summary for a single dependency,
+* used by ZCR_GET_DEPENDENCY_OBJ to enrich non-DDIC dependencies
+* (DDIC objects - DOMA/DTEL/TABL/TTYP - are handled separately by
+* Z_GET_DDIC_INFO and are NOT in scope here).
+*
+* IV_OBJ_TYPE:
+*   'PROG' / 'INCL' -> program_type / is_include / package
+*   'FUNC'          -> parameters (import/export/changing/tables) + exceptions
+*   'METH'          -> visibility / is_static / parameters / exceptions
+*                      (IV_PARENT_NAME = owning class or interface name;
+*                       for interfaces VISIBILITY/IS_STATIC stay blank)
+*----------------------------------------------------------------------
+
+  CLEAR es_signature.
+
+  CASE iv_obj_type.
+
+*----------------------------------------------------------------------
+* PROG / INCL: program type, include flag, package
+*----------------------------------------------------------------------
+    WHEN 'PROG' OR 'INCL'.
+      DATA: lv_progname TYPE trdir-name,
+            lv_subc     TYPE trdir-subc,
+            lv_devclass TYPE tadir-devclass.
+
+      lv_progname = iv_object_name.
+
+      SELECT SINGLE subc FROM trdir INTO lv_subc WHERE name = lv_progname.
+      IF sy-subrc = 0.
+        CASE lv_subc.
+          WHEN 'I'.
+            es_signature-program_type = 'Include'.
+            es_signature-is_include   = abap_true.
+          WHEN 'F'.
+            es_signature-program_type = 'Function Group'.
+          WHEN 'M'.
+            es_signature-program_type = 'Module Pool'.
+          WHEN 'S'.
+            es_signature-program_type = 'Subroutine Pool'.
+          WHEN 'J'.
+            es_signature-program_type = 'Interface Pool'.
+          WHEN 'K'.
+            es_signature-program_type = 'Class Pool'.
+          WHEN OTHERS.
+            es_signature-program_type = 'Executable'.
+        ENDCASE.
+      ENDIF.
+
+      SELECT SINGLE devclass FROM tadir INTO lv_devclass
+        WHERE pgmid = 'R3TR' AND object = 'PROG' AND obj_name = lv_progname.
+      IF sy-subrc = 0.
+        es_signature-package = lv_devclass.
+      ENDIF.
+
+*----------------------------------------------------------------------
+* FUNC: parameter interface + exceptions via RPY_FUNCTIONMODULE_READ_NEW
+*----------------------------------------------------------------------
+    WHEN 'FUNC'.
+      DATA: lt_import     TYPE STANDARD TABLE OF rsimp,
+            lt_export     TYPE STANDARD TABLE OF rsexp,
+            lt_changing   TYPE STANDARD TABLE OF rscha,
+            lt_tables     TYPE STANDARD TABLE OF rstbl,
+            lt_exceptions TYPE STANDARD TABLE OF rsexc,
+            lt_new_source TYPE rsfb_source,
+            lv_fm_name    TYPE rs38l_fnam.
+
+      lv_fm_name = iv_object_name.
+
+      CALL FUNCTION 'RPY_FUNCTIONMODULE_READ_NEW'
+        EXPORTING
+          functionname       = lv_fm_name
+        TABLES
+          import_parameter   = lt_import
+          changing_parameter = lt_changing
+          export_parameter   = lt_export
+          tables_parameter   = lt_tables
+          exception_list     = lt_exceptions
+        CHANGING
+          new_source         = lt_new_source
+        EXCEPTIONS
+          OTHERS             = 1.
+
+      IF sy-subrc = 0.
+        LOOP AT lt_import ASSIGNING FIELD-SYMBOL(<fs_imp>).
+          APPEND VALUE #( name     = <fs_imp>-parameter
+                           kind     = 'IMPORTING'
+                           type     = <fs_imp>-typ
+                           optional = <fs_imp>-optional
+                           default  = <fs_imp>-default )
+                 TO es_signature-parameters.
+        ENDLOOP.
+
+        LOOP AT lt_export ASSIGNING FIELD-SYMBOL(<fs_exp>).
+          " RSEXP has no OPTIONAL/DEFAULT - export params are always required
+          APPEND VALUE #( name = <fs_exp>-parameter
+                           kind = 'EXPORTING'
+                           type = <fs_exp>-typ )
+                 TO es_signature-parameters.
+        ENDLOOP.
+
+        LOOP AT lt_changing ASSIGNING FIELD-SYMBOL(<fs_cha>).
+          APPEND VALUE #( name     = <fs_cha>-parameter
+                           kind     = 'CHANGING'
+                           type     = <fs_cha>-typ
+                           optional = <fs_cha>-optional
+                           default  = <fs_cha>-default )
+                 TO es_signature-parameters.
+        ENDLOOP.
+
+        LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_tab>).
+          " RSTBL uses DBSTRUCT instead of DBFIELD and has no DEFAULT
+          APPEND VALUE #( name     = <fs_tab>-parameter
+                           kind     = 'TABLES'
+                           type     = <fs_tab>-typ
+                           optional = <fs_tab>-optional )
+                 TO es_signature-parameters.
+        ENDLOOP.
+
+        LOOP AT lt_exceptions ASSIGNING FIELD-SYMBOL(<fs_exc>).
+          APPEND <fs_exc>-exception TO es_signature-exceptions.
+        ENDLOOP.
+      ENDIF.
+
+*----------------------------------------------------------------------
+* METH: visibility / static / parameter interface via RTTI
+* (works for both class methods and interface methods - interfaces
+* simply have no VISIBILITY/IS_STATIC concept, so those stay blank)
+*----------------------------------------------------------------------
+    WHEN 'METH'.
+      CHECK iv_parent_name IS NOT INITIAL.
+
+      DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
+            lo_classdescr TYPE REF TO cl_abap_classdescr,
+            lo_intfdescr  TYPE REF TO cl_abap_intfdescr,
+            lt_methods    TYPE abap_methdescr_tab,
+            ls_method     TYPE abap_methdescr.
+
+      TRY.
+          lo_typedescr = cl_abap_typedescr=>describe_by_name( iv_parent_name ).
+        CATCH cx_root.
+          RETURN.
+      ENDTRY.
+
+      IF lo_typedescr->kind = cl_abap_typedescr=>kind_class.
+        lo_classdescr ?= lo_typedescr.
+        lt_methods = lo_classdescr->methods.
+      ELSEIF lo_typedescr->kind = cl_abap_typedescr=>kind_intf.
+        lo_intfdescr ?= lo_typedescr.
+        lt_methods = lo_intfdescr->methods.
+      ELSE.
+        RETURN.
+      ENDIF.
+
+      READ TABLE lt_methods INTO ls_method WITH KEY name = iv_object_name.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+      IF lo_classdescr IS BOUND.
+        CASE ls_method-visibility.
+          WHEN cl_abap_classdescr=>public.
+            es_signature-visibility = 'PUBLIC'.
+          WHEN cl_abap_classdescr=>protected.
+            es_signature-visibility = 'PROTECTED'.
+          WHEN cl_abap_classdescr=>private.
+            es_signature-visibility = 'PRIVATE'.
+        ENDCASE.
+        es_signature-is_static = ls_method-is_class.
+      ENDIF.
+
+      LOOP AT ls_method-parameters ASSIGNING FIELD-SYMBOL(<fs_param>).
+        DATA(lv_kind) = SWITCH string( <fs_param>-parm_kind
+          WHEN cl_abap_objectdescr=>importing THEN 'IMPORTING'
+          WHEN cl_abap_objectdescr=>exporting THEN 'EXPORTING'
+          WHEN cl_abap_objectdescr=>changing  THEN 'CHANGING'
+          WHEN cl_abap_objectdescr=>returning THEN 'RETURNING'
+          ELSE '' ).
+
+        APPEND VALUE #( name     = <fs_param>-name
+                         kind     = lv_kind
+                         type     = COND #( WHEN <fs_param>-type IS BOUND
+                                             THEN <fs_param>-type->get_relative_name( )
+                                             ELSE '' )
+                         optional = <fs_param>-is_optional
+                         default  = <fs_param>-default_value )
+               TO es_signature-parameters.
+      ENDLOOP.
+
+      APPEND LINES OF ls_method-exceptions TO es_signature-exceptions.
+
+  ENDCASE.
+
+ENDFUNCTION.

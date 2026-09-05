@@ -45,6 +45,7 @@ DATA: gt_e071        TYPE tt_e071,
       gt_output      TYPE tt_output,
       gt_dep         TYPE zpoc_tt_obj,
       gv_dep_json    TYPE string,
+      gv_ddic_json   TYPE string,
       gr_class_name  TYPE RANGE OF seoclsname,
       gv_extr_method TYPE string,
       gv_filename    TYPE string,
@@ -618,9 +619,10 @@ ENDFORM.
 FORM fetch_dependency_json.
   CALL FUNCTION 'ZCR_GET_DEPENDENCY_OBJ'
     EXPORTING
-      ii_objects = gt_dep
+      ii_objects   = gt_dep
     IMPORTING
-      ev_json    = gv_dep_json.
+      ev_json      = gv_dep_json
+      ev_ddic_json = gv_ddic_json.
 
   CLEAR gt_dep.
 ENDFORM.
@@ -633,7 +635,14 @@ FORM append_object_header USING is_e071 TYPE e071.
   APPEND VALUE #( line = |Object: { is_e071-obj_name } { is_e071-object }| ) TO gt_output.
   APPEND VALUE #( line = |Dependency JSON: { gv_dep_json }| ) TO gt_output.
 
-  CLEAR gv_dep_json.
+  " DDIC JSON is now a separate JSON object (no longer merged into the
+  " dependency JSON above) - only shown when this object actually touched
+  " a DOMA/DTEL/TABL/TTYP dependency.
+  IF gv_ddic_json IS NOT INITIAL.
+    APPEND VALUE #( line = |DDIC JSON: { gv_ddic_json }| ) TO gt_output.
+  ENDIF.
+
+  CLEAR: gv_dep_json, gv_ddic_json.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
