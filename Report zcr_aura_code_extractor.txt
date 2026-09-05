@@ -1575,26 +1575,16 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Feeds every checked row into the existing per-object pipeline,
 *       using its (possibly user-edited) CMP_VERSNO as the compare-
-*       against override. Unchecked rows are never touched. A CMP_VERSNO
-*       that was typed directly (not picked via F4) and doesn't exist
-*       for that object is caught by VALIDATE_COMPARE_VERSION - that
-*       object is skipped, but a line is written to the output saying
-*       so, rather than the object silently vanishing.
+*       against override. Unchecked rows are never touched.
+*       Only reached once VALIDATE_CHECKED_VERSIONS has already
+*       confirmed every checked row's CMP_VERSNO is valid (called from
+*       MODULE USER_COMMAND_9000 before this FORM), so no re-validation
+*       happens here.
 *&---------------------------------------------------------------------*
 FORM process_checked_multi_objects.
-  DATA: ls_e071  TYPE e071,
-        lv_valid TYPE abap_bool.
+  DATA ls_e071 TYPE e071.
 
   LOOP AT gt_multi_obj INTO DATA(ls_multi) WHERE checked = abap_true.
-    PERFORM validate_compare_version USING ls_multi CHANGING lv_valid.
-
-    IF lv_valid = abap_false.
-      APPEND VALUE #( line = |=========================================| ) TO gt_output.
-      APPEND VALUE #( line = |Object: { ls_multi-obj_display } - SKIPPED: version { ls_multi-cmp_versno } does not exist for this object| ) TO gt_output.
-      APPEND VALUE #( line = | | ) TO gt_output.
-      CONTINUE.
-    ENDIF.
-
     CLEAR ls_e071.
     ls_e071-pgmid    = ls_multi-pgmid.
     ls_e071-object   = ls_multi-object.
@@ -1602,6 +1592,45 @@ FORM process_checked_multi_objects.
 
     PERFORM process_single_object USING ls_e071 ls_multi-cmp_versno.
   ENDLOOP.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATE_CHECKED_VERSIONS
+*&---------------------------------------------------------------------*
+*       Screen-level gate, called from MODULE USER_COMMAND_9000 when
+*       EXEC is pressed: validates every checked row's CMP_VERSNO
+*       up front. If any are invalid, shows an error message and sets
+*       GV_ERROR so the caller can CHECK it and stay on screen 9000
+*       for correction, instead of writing anything to the output file.
+*&---------------------------------------------------------------------*
+FORM validate_checked_versions.
+  DATA: lv_valid     TYPE abap_bool,
+        lv_bad_count TYPE i,
+        lv_bad_name  TYPE string.
+
+  CLEAR gv_error.
+
+  LOOP AT gt_multi_obj INTO DATA(ls_multi) WHERE checked = abap_true.
+    PERFORM validate_compare_version USING ls_multi CHANGING lv_valid.
+
+    IF lv_valid = abap_false.
+      gv_error = abap_true.
+      lv_bad_count = lv_bad_count + 1.
+      IF lv_bad_name IS INITIAL.
+        lv_bad_name = ls_multi-obj_display.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  IF gv_error = abap_true.
+    IF lv_bad_count = 1.
+      MESSAGE |Invalid compare version for { lv_bad_name }. Please correct it.|
+        TYPE 'S' DISPLAY LIKE 'E'.
+    ELSE.
+      MESSAGE |{ lv_bad_count } rows have an invalid compare version (e.g. { lv_bad_name }). Please correct them.|
+        TYPE 'S' DISPLAY LIKE 'E'.
+    ENDIF.
+  ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1677,6 +1706,10 @@ MODULE user_command_9000 INPUT.
       IF go_alv_grid IS BOUND.
         go_alv_grid->check_changed_data( ).
       ENDIF.
+
+      PERFORM validate_checked_versions.
+      CHECK gv_error = abap_false.
+
       PERFORM process_checked_multi_objects.
       LEAVE TO SCREEN 0.
 
