@@ -1535,6 +1535,11 @@ FORM create_multi_tr_alv.
     CHANGING
       it_outtab       = gt_multi_obj
       it_fieldcatalog = lt_fieldcat ).
+
+  " F4AVAILABL on the fieldcat alone is not enough to make ONF4 fire -
+  " the field also has to be explicitly registered here.
+  go_alv_grid->register_f4_for_fields(
+    it_f4 = VALUE lvc_t_f4( ( fieldname = 'CMP_VERSNO' register = abap_true ) ) ).
 ENDFORM.
 
 *&---------------------------------------------------------------------*
