@@ -96,9 +96,15 @@ FUNCTION zcr_get_object_signature.
 
       IF sy-subrc = 0.
         LOOP AT lt_import ASSIGNING FIELD-SYMBOL(<fs_imp>).
+          " TYP is only populated for "TYPE <name>" parameters; parameters
+          " declared as "LIKE <dbfield>" leave TYP blank and carry the
+          " reference in DBFIELD instead - fall back to that so we don't
+          " silently lose the type for older-style LIKE parameters.
           APPEND VALUE #( name     = <fs_imp>-parameter
                            kind     = 'IMPORTING'
-                           type     = <fs_imp>-typ
+                           type     = COND #( WHEN <fs_imp>-typ IS NOT INITIAL
+                                               THEN <fs_imp>-typ
+                                               ELSE <fs_imp>-dbfield )
                            optional = <fs_imp>-optional
                            zdefault = <fs_imp>-default )
                  TO es_signature-parameters.
@@ -108,14 +114,18 @@ FUNCTION zcr_get_object_signature.
           " RSEXP has no OPTIONAL/DEFAULT - export params are always required
           APPEND VALUE #( name = <fs_exp>-parameter
                            kind = 'EXPORTING'
-                           type = <fs_exp>-typ )
+                           type = COND #( WHEN <fs_exp>-typ IS NOT INITIAL
+                                          THEN <fs_exp>-typ
+                                          ELSE <fs_exp>-dbfield ) )
                  TO es_signature-parameters.
         ENDLOOP.
 
         LOOP AT lt_changing ASSIGNING FIELD-SYMBOL(<fs_cha>).
           APPEND VALUE #( name     = <fs_cha>-parameter
                            kind     = 'CHANGING'
-                           type     = <fs_cha>-typ
+                           type     = COND #( WHEN <fs_cha>-typ IS NOT INITIAL
+                                               THEN <fs_cha>-typ
+                                               ELSE <fs_cha>-dbfield )
                            optional = <fs_cha>-optional
                            zdefault = <fs_cha>-default )
                  TO es_signature-parameters.
@@ -125,7 +135,9 @@ FUNCTION zcr_get_object_signature.
           " RSTBL uses DBSTRUCT instead of DBFIELD and has no DEFAULT
           APPEND VALUE #( name     = <fs_tab>-parameter
                            kind     = 'TABLES'
-                           type     = <fs_tab>-typ
+                           type     = COND #( WHEN <fs_tab>-typ IS NOT INITIAL
+                                               THEN <fs_tab>-typ
+                                               ELSE <fs_tab>-dbstruct )
                            optional = <fs_tab>-optional )
                  TO es_signature-parameters.
         ENDLOOP.
