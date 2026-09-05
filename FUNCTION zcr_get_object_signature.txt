@@ -96,7 +96,7 @@ FUNCTION zcr_get_object_signature.
                            kind     = 'IMPORTING'
                            type     = <fs_imp>-typ
                            optional = <fs_imp>-optional
-                           default  = <fs_imp>-default )
+                           zdefault = <fs_imp>-default )
                  TO es_signature-parameters.
         ENDLOOP.
 
@@ -113,7 +113,7 @@ FUNCTION zcr_get_object_signature.
                            kind     = 'CHANGING'
                            type     = <fs_cha>-typ
                            optional = <fs_cha>-optional
-                           default  = <fs_cha>-default )
+                           zdefault = <fs_cha>-default )
                  TO es_signature-parameters.
         ENDLOOP.
 
@@ -192,7 +192,7 @@ FUNCTION zcr_get_object_signature.
                                              THEN <fs_param>-type->get_relative_name( )
                                              ELSE '' )
                          optional = <fs_param>-is_optional
-                         default  = <fs_param>-default_value )
+                         zdefault = <fs_param>-default_value )
                TO es_signature-parameters.
       ENDLOOP.
 

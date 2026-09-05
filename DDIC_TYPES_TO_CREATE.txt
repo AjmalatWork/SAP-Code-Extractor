@@ -1,17 +1,20 @@
-DDIC objects to create in SE11 before activating ZCR_GET_OBJECT_SIGNATURE
+DDIC objects for ZCR_GET_OBJECT_SIGNATURE
 ===========================================================================
-Create in this order (each references the previous one).
+STATUS: created in the system. Actual field/type names below reflect what
+was actually built (DEFAULT is an ABAP reserved word, so that field is
+named ZDEFAULT instead; ABAP_BOOL was substituted with FLAG - both are
+CHAR1 domains with 'X'/' ' values, so no code impact either way).
 
 1) Structure ZCR_TS_SIG_PARAM  ("one parameter of a signature")
    Short text: Signature Parameter (Code Extractor)
 
    Component   Typing Method   Component Type
    ---------   -------------   --------------
-   NAME        Types           STRING
-   KIND        Types           STRING     " IMPORTING / EXPORTING / CHANGING / TABLES / RETURNING
-   TYPE        Types           STRING     " resolved ABAP type name, e.g. STRING, BAPIRET2, ZCL_FOO
-   OPTIONAL    Types           ABAP_BOOL
-   DEFAULT     Types           STRING     " only populated for IMPORTING/CHANGING kinds
+   NAME        Types           Z_STRING   " STRING, via data element
+   KIND        Types           Z_STRING   " IMPORTING / EXPORTING / CHANGING / TABLES / RETURNING
+   TYPE        Types           Z_STRING   " resolved ABAP type name, e.g. STRING, BAPIRET2, ZCL_FOO
+   OPTIONAL    Types           FLAG
+   ZDEFAULT    Types           Z_STRING   " only populated for IMPORTING/CHANGING kinds ("DEFAULT" is reserved)
 
 2) Table type ZCR_TT_SIG_PARAM
    Short text: Signature Parameter Table (Code Extractor)
@@ -24,17 +27,19 @@ Create in this order (each references the previous one).
 
    Component      Typing Method   Component Type
    ---------      -------------   --------------
-   PROGRAM_TYPE   Types           STRING          " PROG/INCL only: Executable/Include/Function Group/etc.
-   IS_INCLUDE     Types           ABAP_BOOL       " PROG/INCL only
+   PROGRAM_TYPE   Types           Z_STRING        " PROG/INCL only: Executable/Include/Function Group/etc.
+   IS_INCLUDE     Types           FLAG            " PROG/INCL only
    PACKAGE        Types           DEVCLASS        " PROG/INCL only
-   VISIBILITY     Types           STRING          " METH (class) only: PUBLIC/PROTECTED/PRIVATE
-   IS_STATIC      Types           ABAP_BOOL       " METH only
+   VISIBILITY     Types           Z_STRING        " METH (class) only: PUBLIC/PROTECTED/PRIVATE
+   IS_STATIC      Types           FLAG            " METH only
    PARAMETERS     Types           ZCR_TT_SIG_PARAM   " FUNC / METH
    EXCEPTIONS     Types           STRING_TABLE    " FUNC / METH (STRING_TABLE already exists in SAP standard)
 
 Notes:
 - No DESCRIPTION field, per decision to drop short-text enrichment for all types
   (not cheaply retrievable for CLAS/INTF methods, dropped everywhere for consistency).
+- ZCR_GET_OBJECT_SIGNATURE.txt has been updated to assign ZDEFAULT (not DEFAULT)
+  when building ZCR_TS_SIG_PARAM rows.
 - Fields irrelevant to a given dependency's type are left blank by
   ZCR_GET_OBJECT_SIGNATURE. The calling FM (ZCR_GET_DEPENDENCY_OBJ) serializes
   with /ui2/cl_json=>serialize( compress = abap_true ), which drops blank/initial
