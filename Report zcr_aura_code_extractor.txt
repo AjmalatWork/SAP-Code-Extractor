@@ -1198,6 +1198,9 @@ ENDFORM.
 *       objects are processed and no file is written.
 *&---------------------------------------------------------------------*
 FORM run_multi_tr_flow.
+  DATA: lv_single_name TYPE string,
+        lv_count       TYPE i.
+
   PERFORM validate_multi_tr_input.
   CHECK gv_error = abap_false.
 
@@ -1207,8 +1210,9 @@ FORM run_multi_tr_flow.
   PERFORM build_multi_tr_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_alv_output_path USING CONV string( gt_entered_trs[ 1 ] )
-                                           lines( gt_entered_trs ) 'TO'.
+  lv_single_name = gt_entered_trs[ 1 ].
+  lv_count       = lines( gt_entered_trs ).
+  PERFORM determine_alv_output_path USING lv_single_name lv_count 'TO'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
@@ -1225,6 +1229,9 @@ ENDFORM.
 *       screen (9000), then processes only the checked rows.
 *&---------------------------------------------------------------------*
 FORM run_prog_alv_flow.
+  DATA: lv_single_name TYPE string,
+        lv_count       TYPE i.
+
   IF so_prog IS INITIAL.
     MESSAGE 'Please enter at least one Program.' TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
@@ -1233,8 +1240,9 @@ FORM run_prog_alv_flow.
   PERFORM build_multi_prog_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_alv_output_path USING CONV string( so_prog[ 1 ]-low )
-                                           lines( so_prog ) 'PROG'.
+  lv_single_name = so_prog[ 1 ]-low.
+  lv_count       = lines( so_prog ).
+  PERFORM determine_alv_output_path USING lv_single_name lv_count 'PROG'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
@@ -1276,6 +1284,9 @@ ENDFORM.
 *       in the ALV rather than on the selection screen.
 *&---------------------------------------------------------------------*
 FORM run_class_alv_flow.
+  DATA: lv_single_name TYPE string,
+        lv_count       TYPE i.
+
   IF so_clas IS INITIAL.
     MESSAGE 'Please enter at least one Class.' TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
@@ -1284,8 +1295,9 @@ FORM run_class_alv_flow.
   PERFORM build_class_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_alv_output_path USING CONV string( so_clas[ 1 ]-low )
-                                           lines( so_clas ) 'CLAS'.
+  lv_single_name = so_clas[ 1 ]-low.
+  lv_count       = lines( so_clas ).
+  PERFORM determine_alv_output_path USING lv_single_name lv_count 'CLAS'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
@@ -1338,6 +1350,9 @@ ENDFORM.
 *       then processes only the checked rows.
 *&---------------------------------------------------------------------*
 FORM run_func_alv_flow.
+  DATA: lv_single_name TYPE string,
+        lv_count       TYPE i.
+
   IF so_func IS INITIAL.
     MESSAGE 'Please enter at least one Function Module.' TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
@@ -1346,8 +1361,9 @@ FORM run_func_alv_flow.
   PERFORM build_multi_func_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_alv_output_path USING CONV string( so_func[ 1 ]-low )
-                                           lines( so_func ) 'FUNC'.
+  lv_single_name = so_func[ 1 ]-low.
+  lv_count       = lines( so_func ).
+  PERFORM determine_alv_output_path USING lv_single_name lv_count 'FUNC'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
