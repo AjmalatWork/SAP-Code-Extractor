@@ -544,9 +544,11 @@ ENDFORM.
 *&      Form  PROCESS_ALL_OBJECTS
 *&---------------------------------------------------------------------*
 FORM process_all_objects.
-  DATA ls_e071 TYPE e071.
+  DATA: ls_e071        TYPE e071,
+        lv_no_override TYPE vrsd-versno.
+
   LOOP AT gt_e071 INTO ls_e071.
-    PERFORM process_single_object USING ls_e071.
+    PERFORM process_single_object USING ls_e071 lv_no_override.
   ENDLOOP.
 ENDFORM.
 
@@ -558,14 +560,18 @@ ENDFORM.
 *       Any CHECK failure below simply skips this object, matching the
 *       original report's CONTINUE behaviour.
 *
-*       IV_COMPARE_VERSNO is OPTIONAL and only used by the multi-TR ALV
-*       flow: when supplied, it overrides the normal auto-detected
-*       "previous version" with the user's chosen baseline from the ALV.
-*       Program/Class/Function mode never supplies it, so their behavior
-*       is completely unchanged.
+*       IV_COMPARE_VERSNO is only used by the multi-TR ALV flow: when
+*       non-initial, it overrides the normal auto-detected "previous
+*       version" with the user's chosen baseline from the ALV.
+*       PROCESS_ALL_OBJECTS (Program/Class/Function mode) always passes
+*       an untouched (therefore initial) local variable for it, so their
+*       behavior is completely unchanged. Not declared OPTIONAL - some
+*       ABAP versions parse the OPTIONAL addition after "TYPE <field>"
+*       as introducing a further formal parameter rather than a keyword,
+*       so both call sites always pass it explicitly instead.
 *&---------------------------------------------------------------------*
 FORM process_single_object USING is_e071 TYPE e071
-                                  iv_compare_versno TYPE vrsd-versno OPTIONAL.
+                                  iv_compare_versno TYPE vrsd-versno.
   DATA: lv_objname          TYPE vrsd-objname,
         lv_object_type      TYPE e071-object,
         lt_version_list     TYPE tt_vrsd,
