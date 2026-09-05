@@ -138,8 +138,8 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
     " as ENRICH_MULTI_OBJECTS, fixed the same way.
     lv_obj_name = <fs_row>-obj_name.
 
-    " F4 shows ALL versions of this object in the version database - not
-    " filtered to the entered TRs, per the brief.
+    " F4 intentionally shows ALL versions of this object in the version
+    " database, not just the ones tied to the entered TRs.
     CALL FUNCTION 'SVRS_GET_VERSION_DIRECTORY_46'
       EXPORTING
         objname      = lv_obj_name
@@ -1588,9 +1588,8 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_MULTI_TR_FIELDCAT
 *&---------------------------------------------------------------------*
-*       Column layout per the brief: only CHECKED (1) and CMP_VERSNO (5)
-*       are editable; CMP_VERSNO also gets a custom F4 (handled by
-*       LCL_ALV_EVENT_HANDLER->ON_F4).
+*       Only CHECKED and CMP_VERSNO are editable; CMP_VERSNO also gets a
+*       custom F4 (handled by LCL_ALV_EVENT_HANDLER->ON_F4).
 *&---------------------------------------------------------------------*
 FORM build_multi_tr_fieldcat CHANGING ct_fieldcat TYPE lvc_t_fcat.
   CLEAR ct_fieldcat.
