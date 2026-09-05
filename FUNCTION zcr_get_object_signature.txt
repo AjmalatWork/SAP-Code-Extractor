@@ -139,11 +139,14 @@ FUNCTION zcr_get_object_signature.
     WHEN 'METH'.
       CHECK iv_parent_name IS NOT INITIAL.
 
-      DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
-            lo_classdescr TYPE REF TO cl_abap_classdescr,
-            lo_intfdescr  TYPE REF TO cl_abap_intfdescr,
-            lt_methods    TYPE abap_methdescr_tab,
-            ls_method     TYPE abap_methdescr.
+      DATA: lo_typedescr   TYPE REF TO cl_abap_typedescr,
+            lo_classdescr  TYPE REF TO cl_abap_classdescr,
+            lo_intfdescr   TYPE REF TO cl_abap_intfdescr,
+            lo_objectdescr TYPE REF TO cl_abap_objectdescr,
+            lo_ptype       TYPE REF TO cl_abap_typedescr,
+            lt_methods     TYPE abap_methdescr_tab,
+            ls_method      TYPE abap_methdescr,
+            lv_type        TYPE string.
 
       TRY.
           lo_typedescr = cl_abap_typedescr=>describe_by_name( iv_parent_name ).
@@ -153,9 +156,11 @@ FUNCTION zcr_get_object_signature.
 
       IF lo_typedescr->kind = cl_abap_typedescr=>kind_class.
         lo_classdescr ?= lo_typedescr.
+        lo_objectdescr = lo_classdescr.
         lt_methods = lo_classdescr->methods.
       ELSEIF lo_typedescr->kind = cl_abap_typedescr=>kind_intf.
         lo_intfdescr ?= lo_typedescr.
+        lo_objectdescr = lo_intfdescr.
         lt_methods = lo_intfdescr->methods.
       ELSE.
         RETURN.
@@ -186,13 +191,25 @@ FUNCTION zcr_get_object_signature.
           WHEN cl_abap_objectdescr=>returning THEN 'RETURNING'
           ELSE '' ).
 
+        " ABAP_PARMDESCR only carries TYPE_KIND (a category code), not a
+        " resolved type name, and has no default-value field at all - the
+        " actual type name needs a separate on-demand RTTI lookup.
+        CLEAR lv_type.
+        TRY.
+            lo_ptype = lo_objectdescr->get_method_parameter_type(
+                         p_method_name    = iv_object_name
+                         p_parameter_name = <fs_param>-name ).
+            IF lo_ptype IS BOUND.
+              lv_type = lo_ptype->get_relative_name( ).
+            ENDIF.
+          CATCH cx_root.
+            CLEAR lv_type.
+        ENDTRY.
+
         APPEND VALUE #( name     = <fs_param>-name
                          kind     = lv_kind
-                         type     = COND #( WHEN <fs_param>-type IS BOUND
-                                             THEN <fs_param>-type->get_relative_name( )
-                                             ELSE '' )
-                         optional = <fs_param>-is_optional
-                         zdefault = <fs_param>-default_value )
+                         type     = lv_type
+                         optional = <fs_param>-is_optional )
                TO es_signature-parameters.
       ENDLOOP.
 
