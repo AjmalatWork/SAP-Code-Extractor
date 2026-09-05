@@ -53,7 +53,7 @@ TYPES: BEGIN OF ts_tr_hit,
        END OF ts_tr_hit,
        tt_tr_hit TYPE STANDARD TABLE OF ts_tr_hit WITH EMPTY KEY.
 
-" One row of the multi-TR ALV review screen.
+" One row of the ALV review screen (TR / Program / Class / Function).
 TYPES: BEGIN OF ts_multi_obj,
          checked        TYPE abap_bool,
          pgmid          TYPE e071-pgmid,
@@ -82,10 +82,12 @@ DATA: gt_e071        TYPE tt_e071,
       gv_filename    TYPE string,
       gv_full_path   TYPE string,
       gv_error       TYPE abap_bool,
-      gv_meth_dummy  TYPE seomtdname,
-      gv_tr_dummy    TYPE trkorr.
+      gv_tr_dummy    TYPE trkorr,
+      gv_prog_dummy  TYPE sy-repid,
+      gv_clas_dummy  TYPE seoclsname,
+      gv_func_dummy  TYPE rs38l_fnam.
 
-" Multi-TR ALV review screen (9000) state.
+" ALV review screen (9000) state - shared by TR/Program/Class/Function.
 DATA: gt_multi_obj       TYPE tt_multi_obj,
       gt_entered_trs     TYPE STANDARD TABLE OF e070-trkorr WITH EMPTY KEY,
       go_container       TYPE REF TO cl_gui_custom_container,
@@ -214,13 +216,10 @@ PARAMETERS: rb_tr   RADIOBUTTON GROUP grp1 DEFAULT 'X' USER-COMMAND ucomm,
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
-SELECT-OPTIONS: so_tr FOR gv_tr_dummy MODIF ID tr NO INTERVALS.
-
-PARAMETERS: p_prog TYPE sy-repid   MODIF ID prg,
-            p_clas TYPE seoclsname MODIF ID cls,
-            p_func TYPE rs38l_fnam MODIF ID fnc.
-
-SELECT-OPTIONS: s_meth FOR gv_meth_dummy MODIF ID mth NO INTERVALS.
+SELECT-OPTIONS: so_tr   FOR gv_tr_dummy   MODIF ID tr  NO INTERVALS,
+                so_prog FOR gv_prog_dummy MODIF ID prg NO INTERVALS,
+                so_clas FOR gv_clas_dummy MODIF ID cls NO INTERVALS,
+                so_func FOR gv_func_dummy MODIF ID fnc NO INTERVALS.
 
 PARAMETERS: p_file TYPE string OBLIGATORY DEFAULT 'C:\temp\'.
 SELECTION-SCREEN END OF BLOCK b2.
@@ -240,9 +239,6 @@ AT SELECTION-SCREEN OUTPUT.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
   PERFORM f4_output_folder CHANGING p_file.
 
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_meth-low.
-  PERFORM f4_method_name.
-
 *&---------------------------------------------------------------------*
 *& Main
 *&---------------------------------------------------------------------*
@@ -252,34 +248,24 @@ START-OF-SELECTION.
 *&---------------------------------------------------------------------*
 *&      Form  MAIN
 *&---------------------------------------------------------------------*
-*       Orchestrates the whole extraction. Each step is a self
-*       contained FORM so new extraction sources / output formats can
-*       be plugged in without touching the others.
-*       TR mode always routes through the multi-TR ALV review screen
-*       (RUN_MULTI_TR_FLOW). A whole class (no specific method chosen)
-*       routes through the same screen via RUN_CLASS_ALV_FLOW, listing
-*       its section includes and methods for the user to pick from.
-*       Program/Function modes, and Class mode with specific methods
-*       already chosen, are unchanged.
+*       Orchestrates the whole extraction. All four modes now route
+*       through the same interactive ALV review screen (9000): the user
+*       picks which of the candidate objects to include and can
+*       override each one's compare-against version, with methods
+*       selectable directly in the ALV rather than on the selection
+*       screen (there's no separate "specific method" input any more).
 *&---------------------------------------------------------------------*
 FORM main.
   PERFORM determine_extraction_method.
 
   IF rb_tr = 'X'.
     PERFORM run_multi_tr_flow.
-  ELSEIF rb_clas = 'X' AND s_meth IS INITIAL.
+  ELSEIF rb_prog = 'X'.
+    PERFORM run_prog_alv_flow.
+  ELSEIF rb_clas = 'X'.
     PERFORM run_class_alv_flow.
-  ELSE.
-    PERFORM determine_output_path.
-
-    PERFORM build_object_list.
-    CHECK gv_error = abap_false.
-
-    PERFORM add_class_methods.
-
-    PERFORM process_all_objects.
-
-    PERFORM download_output_file.
+  ELSEIF rb_func = 'X'.
+    PERFORM run_func_alv_flow.
   ENDIF.
 ENDFORM.
 
@@ -292,22 +278,21 @@ ENDFORM.
 FORM screen_modify.
   LOOP AT SCREEN.
     IF screen-group1 = 'TR'  OR screen-group1 = 'PRG' OR
-       screen-group1 = 'CLS' OR screen-group1 = 'FNC' OR
-       screen-group1 = 'MTH'.
+       screen-group1 = 'CLS' OR screen-group1 = 'FNC'.
       screen-active = 0.
     ENDIF.
 
     IF rb_tr = 'X' AND screen-group1 = 'TR'.
-      CLEAR: p_prog, p_clas, p_func.
+      CLEAR: so_prog, so_clas, so_func.
       screen-active = 1.
     ELSEIF rb_prog = 'X' AND screen-group1 = 'PRG'.
-      CLEAR: so_tr, p_clas, p_func.
+      CLEAR: so_tr, so_clas, so_func.
       screen-active = 1.
-    ELSEIF rb_clas = 'X' AND ( screen-group1 = 'CLS' OR screen-group1 = 'MTH' ).
-      CLEAR: p_prog, so_tr, p_func.
+    ELSEIF rb_clas = 'X' AND screen-group1 = 'CLS'.
+      CLEAR: so_prog, so_tr, so_func.
       screen-active = 1.
     ELSEIF rb_func = 'X' AND screen-group1 = 'FNC'.
-      CLEAR: p_prog, p_clas, so_tr.
+      CLEAR: so_prog, so_clas, so_tr.
       screen-active = 1.
     ENDIF.
 
@@ -339,38 +324,6 @@ FORM f4_output_folder CHANGING cv_file TYPE string.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  F4_METHOD_NAME
-*&---------------------------------------------------------------------*
-FORM f4_method_name.
-  DATA: lt_methods TYPE TABLE OF seocpdkey,
-        lt_return  TYPE TABLE OF ddshretval.
-
-  IF p_clas IS INITIAL.
-    MESSAGE 'Please enter Class Name first' TYPE 'I'.
-    RETURN.
-  ENDIF.
-
-  SELECT clsname cmpname
-    INTO TABLE lt_methods
-    FROM seocompo
-   WHERE clsname = p_clas
-     AND cmptype = '1'.               "Methods
-
-  CHECK sy-subrc = 0.
-
-  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
-    EXPORTING
-      retfield    = 'CMPNAME'
-      dynpprog    = sy-repid
-      dynpnr      = sy-dynnr
-      dynprofield = 'S_METH'
-      value_org   = 'S'
-    TABLES
-      value_tab   = lt_methods
-      return_tab  = lt_return.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
 *&      Form  DETERMINE_EXTRACTION_METHOD
 *&---------------------------------------------------------------------*
 FORM determine_extraction_method.
@@ -384,48 +337,33 @@ FORM determine_extraction_method.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  DETERMINE_OUTPUT_PATH
+*&      Form  DETERMINE_ALV_OUTPUT_PATH
 *&---------------------------------------------------------------------*
-*       Program/Class/Function modes only - TR mode uses
-*       DETERMINE_MULTI_OUTPUT_PATH instead.
+*       Shared by all four modes. With exactly one entry, keeps the
+*       original single-object naming (CODE_EXTRACT_<name>_<METHOD>.TXT)
+*       unchanged; with more than one, uses
+*       CODE_EXTRACT_MULTI_<label><n>_<METHOD>.TXT, where <n> is how
+*       many were entered. IV_SINGLE_NAME is only used when IV_COUNT = 1
+*       (TR mode passes 'TO' as IV_MULTI_LABEL to keep its existing
+*       CODE_EXTRACT_MULTI_TO<n> naming from before Program/Class/
+*       Function modes gained this same screen).
 *&---------------------------------------------------------------------*
-FORM determine_output_path.
-  IF p_prog IS NOT INITIAL.
-    gv_filename = |CODE_EXTRACT_{ p_prog }_{ gv_extr_method }.TXT|.
-  ELSEIF p_func IS NOT INITIAL.
-    gv_filename = |CODE_EXTRACT_{ p_func }_{ gv_extr_method }.TXT|.
-  ELSEIF p_clas IS NOT INITIAL.
-    gv_filename = |CODE_EXTRACT_{ p_clas }_{ gv_extr_method }.TXT|.
+FORM determine_alv_output_path USING iv_single_name TYPE string
+                                      iv_count       TYPE i
+                                      iv_multi_label TYPE string.
+  IF iv_count = 1.
+    gv_filename = |CODE_EXTRACT_{ iv_single_name }_{ gv_extr_method }.TXT|.
   ELSE.
-    gv_filename = |CODE_EXTRACT.TXT|.
+    gv_filename = |CODE_EXTRACT_MULTI_{ iv_multi_label }{ iv_count }_{ gv_extr_method }.TXT|.
   ENDIF.
 
-  PERFORM build_full_path.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
-*&      Form  DETERMINE_MULTI_OUTPUT_PATH
-*&---------------------------------------------------------------------*
-*       TR mode: with exactly one TR entered, keeps the original
-*       single-TR naming (CODE_EXTRACT_<TR>_<METHOD>.TXT) unchanged;
-*       with more than one, uses CODE_EXTRACT_MULTI_TO<n>_<METHOD>.TXT,
-*       where <n> is the number of TRs actually entered (resolved so_tr
-*       matches).
-*&---------------------------------------------------------------------*
-FORM determine_multi_output_path.
-  IF lines( gt_entered_trs ) = 1.
-    gv_filename = |CODE_EXTRACT_{ gt_entered_trs[ 1 ] }_{ gv_extr_method }.TXT|.
-  ELSE.
-    gv_filename = |CODE_EXTRACT_MULTI_TO{ lines( gt_entered_trs ) }_{ gv_extr_method }.TXT|.
-  ENDIF.
   PERFORM build_full_path.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_FULL_PATH
 *&---------------------------------------------------------------------*
-*       Combines P_FILE + GV_FILENAME into GV_FULL_PATH. Shared by both
-*       output-path FORMs above.
+*       Combines P_FILE + GV_FILENAME into GV_FULL_PATH.
 *&---------------------------------------------------------------------*
 FORM build_full_path.
   gv_full_path = p_file.
@@ -436,38 +374,22 @@ FORM build_full_path.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  BUILD_OBJECT_LIST
-*&---------------------------------------------------------------------*
-*       Dispatches to the source-specific list builder (Program/Class/
-*       Function only - TR mode never reaches this, see MAIN). Sets
-*       GV_ERROR if the input could not be resolved, which stops MAIN.
-*&---------------------------------------------------------------------*
-FORM build_object_list.
-  CLEAR: gt_e071, gv_error.
-
-  IF rb_prog = 'X'.
-    PERFORM build_object_list_from_prog.
-  ELSEIF rb_clas = 'X'.
-    PERFORM build_object_list_from_class.
-  ELSEIF rb_func = 'X'.
-    PERFORM build_object_list_from_func.
-  ENDIF.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
 *&      Form  BUILD_OBJECT_LIST_FROM_PROG
 *&---------------------------------------------------------------------*
-FORM build_object_list_from_prog.
+*       A nonexistent/inactive program is skipped with a message rather
+*       than aborting the whole run - SO_PROG may list several programs,
+*       and one bad entry shouldn't block the rest.
+*&---------------------------------------------------------------------*
+FORM build_object_list_from_prog USING iv_prog TYPE sy-repid.
   DATA ls_e071 TYPE e071.
 
   SELECT SINGLE name, subc
     FROM trdir
     INTO @DATA(ls_trdir)
-    WHERE name = @p_prog.
+    WHERE name = @iv_prog.
 
   IF sy-subrc <> 0.
-    MESSAGE 'Program does not exist or is inactive.' TYPE 'S' DISPLAY LIKE 'E'.
-    gv_error = abap_true.
+    MESSAGE |Program { iv_prog } does not exist or is inactive - skipped.| TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
   ENDIF.
 
@@ -476,13 +398,13 @@ FORM build_object_list_from_prog.
       ls_e071-pgmid  = 'LIMU'.
       ls_e071-object = 'REPS'.
     WHEN OTHERS.
-      PERFORM add_program_includes USING p_prog.
+      PERFORM add_program_includes USING iv_prog.
       CLEAR ls_e071.
       ls_e071-pgmid  = 'R3TR'.
       ls_e071-object = 'PROG'.
   ENDCASE.
 
-  ls_e071-obj_name = p_prog.
+  ls_e071-obj_name = iv_prog.
   APPEND ls_e071 TO gt_e071.
 ENDFORM.
 
@@ -517,57 +439,59 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_OBJECT_LIST_FROM_CLASS
 *&---------------------------------------------------------------------*
-FORM build_object_list_from_class.
+*       Adds a class's definition/public/protected/private section
+*       includes. Method selection now happens in the ALV, not here -
+*       ADD_CLASS_METHODS (called separately) adds every method of
+*       every class collected via GR_CLASS_NAME, and the ALV lets the
+*       user check/uncheck individual ones.
+*       A nonexistent class is skipped with a message rather than
+*       aborting the whole run, same reasoning as the Program builder.
+*&---------------------------------------------------------------------*
+FORM build_object_list_from_class USING iv_clas TYPE seoclsname.
   SELECT SINGLE clsname, clstype
     FROM seoclass
     INTO @DATA(ls_class)
-    WHERE clsname = @p_clas.
+    WHERE clsname = @iv_clas.
 
   IF sy-subrc <> 0.
-    MESSAGE 'Class does not exist.' TYPE 'S' DISPLAY LIKE 'E'.
-    gv_error = abap_true.
+    MESSAGE |Class { iv_clas } does not exist - skipped.| TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
   ENDIF.
 
-  IF s_meth IS INITIAL.
-    APPEND VALUE #( pgmid = 'R3TR' object = 'CLAS' obj_name = p_clas ) TO gt_e071.
-    APPEND VALUE #( pgmid = 'LIMU' object = 'CPUB' obj_name = p_clas ) TO gt_e071.
-    APPEND VALUE #( pgmid = 'LIMU' object = 'CPRO' obj_name = p_clas ) TO gt_e071.
-    APPEND VALUE #( pgmid = 'LIMU' object = 'CPRI' obj_name = p_clas ) TO gt_e071.
+  APPEND VALUE #( pgmid = 'R3TR' object = 'CLAS' obj_name = iv_clas ) TO gt_e071.
+  APPEND VALUE #( pgmid = 'LIMU' object = 'CPUB' obj_name = iv_clas ) TO gt_e071.
+  APPEND VALUE #( pgmid = 'LIMU' object = 'CPRO' obj_name = iv_clas ) TO gt_e071.
+  APPEND VALUE #( pgmid = 'LIMU' object = 'CPRI' obj_name = iv_clas ) TO gt_e071.
 
-    APPEND VALUE #( sign = 'I' option = 'EQ' low = p_clas ) TO gr_class_name.
-  ELSE.
-    LOOP AT s_meth INTO DATA(ls_method).
-      APPEND VALUE #( pgmid = 'LIMU' object = 'METH'
-                       obj_name = |{ p_clas WIDTH = 30 }{ ls_method-low }| ) TO gt_e071.
-    ENDLOOP.
-  ENDIF.
+  APPEND VALUE #( sign = 'I' option = 'EQ' low = iv_clas ) TO gr_class_name.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_OBJECT_LIST_FROM_FUNC
 *&---------------------------------------------------------------------*
-FORM build_object_list_from_func.
+*       A nonexistent function module is skipped with a message rather
+*       than aborting the whole run, same reasoning as the other builders.
+*&---------------------------------------------------------------------*
+FORM build_object_list_from_func USING iv_func TYPE rs38l_fnam.
   SELECT SINGLE funcname
     FROM tfdir
     INTO @DATA(lv_funcname)
-    WHERE funcname = @p_func.
+    WHERE funcname = @iv_func.
 
   IF sy-subrc <> 0.
-    MESSAGE 'Function Module does not exist.' TYPE 'S' DISPLAY LIKE 'E'.
-    gv_error = abap_true.
+    MESSAGE |Function Module { iv_func } does not exist - skipped.| TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
   ENDIF.
 
-  APPEND VALUE #( pgmid = 'LIMU' object = 'FUNC' obj_name = p_func ) TO gt_e071.
+  APPEND VALUE #( pgmid = 'LIMU' object = 'FUNC' obj_name = iv_func ) TO gt_e071.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *&      Form  ADD_CLASS_METHODS
 *&---------------------------------------------------------------------*
-*       For every CLAS entry already in the object list (irrespective
-*       of where it came from - Program or Class input), also extract
-*       and list all of its methods.
+*       For every CLAS entry already in the object list, also extract
+*       and list all of its methods (as separate GT_E071 rows) so the
+*       ALV can offer them as individually checkable objects.
 *&---------------------------------------------------------------------*
 FORM add_class_methods.
   LOOP AT gt_e071 ASSIGNING FIELD-SYMBOL(<fs_class>) WHERE object = 'CLAS'.
@@ -591,14 +515,22 @@ FORM add_class_methods.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  PROCESS_ALL_OBJECTS
+*&      Form  CONVERT_E071_TO_MULTI_OBJ
 *&---------------------------------------------------------------------*
-FORM process_all_objects.
-  DATA: ls_e071        TYPE e071,
-        lv_no_override TYPE vrsd-versno.
+*       Shared by the Program/Class/Function ALV builders: converts
+*       GT_E071 rows into GT_MULTI_OBJ rows (checkbox defaulted to
+*       checked). The bare CLAS entry is excluded - it's the class
+*       object itself, not one of its includes/methods.
+*&---------------------------------------------------------------------*
+FORM convert_e071_to_multi_obj.
+  CLEAR gt_multi_obj.
 
-  LOOP AT gt_e071 INTO ls_e071.
-    PERFORM process_single_object USING ls_e071 lv_no_override.
+  LOOP AT gt_e071 INTO DATA(ls_e071) WHERE object <> 'CLAS'.
+    APPEND VALUE #( checked     = abap_true
+                     pgmid       = ls_e071-pgmid
+                     object      = ls_e071-object
+                     obj_name    = ls_e071-obj_name
+                     obj_display = |{ ls_e071-obj_name } { ls_e071-object }| ) TO gt_multi_obj.
   ENDLOOP.
 ENDFORM.
 
@@ -610,15 +542,13 @@ ENDFORM.
 *       Any CHECK failure below simply skips this object, matching the
 *       original report's CONTINUE behaviour.
 *
-*       IV_COMPARE_VERSNO is only used by the multi-TR ALV flow: when
-*       non-initial, it overrides the normal auto-detected "previous
-*       version" with the user's chosen baseline from the ALV.
-*       PROCESS_ALL_OBJECTS (Program/Class/Function mode) always passes
-*       an untouched (therefore initial) local variable for it, so their
-*       behavior is completely unchanged. Not declared OPTIONAL - some
-*       ABAP versions parse the OPTIONAL addition after "TYPE <field>"
-*       as introducing a further formal parameter rather than a keyword,
-*       so both call sites always pass it explicitly instead.
+*       IV_COMPARE_VERSNO is only used by the ALV flows: when non-
+*       initial, it overrides the normal auto-detected "previous
+*       version" with the user's chosen baseline from the ALV. Not
+*       declared OPTIONAL - some ABAP versions parse the OPTIONAL
+*       addition after "TYPE <field>" as introducing a further formal
+*       parameter rather than a keyword, so callers always pass it
+*       explicitly (initial = no override) instead.
 *&---------------------------------------------------------------------*
 FORM process_single_object USING is_e071 TYPE e071
                                   iv_compare_versno TYPE vrsd-versno.
@@ -704,9 +634,6 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Resolves the concrete PROG/include that ZCR_GET_DEPENDENCY_OBJ_NEW
 *       should analyse for the given transport object, into GT_DEP.
-*       NOTE: the CPRI/CPRO mapping below intentionally mirrors the
-*       original report's get_prosec_name/get_prisec_name pairing -
-*       verify with the business if this was meant to be swapped.
 *&---------------------------------------------------------------------*
 FORM build_dependency_input USING is_e071 TYPE e071
                              CHANGING cv_skip TYPE abap_bool.
@@ -775,12 +702,12 @@ FORM build_dependency_input USING is_e071 TYPE e071
     WHEN 'CPRI'.
       lv_class_name = lv_objname.
       APPEND VALUE #( obj_type = 'PROG'
-                       object_name = cl_oo_classname_service=>get_prosec_name( lv_class_name ) ) TO gt_dep.
+                       object_name = cl_oo_classname_service=>get_prisec_name( lv_class_name ) ) TO gt_dep.
 
     WHEN 'CPRO'.
       lv_class_name = lv_objname.
       APPEND VALUE #( obj_type = 'PROG'
-                       object_name = cl_oo_classname_service=>get_prisec_name( lv_class_name ) ) TO gt_dep.
+                       object_name = cl_oo_classname_service=>get_prosec_name( lv_class_name ) ) TO gt_dep.
 
     WHEN 'CLSD'.
       lv_class_name = lv_objname.
@@ -859,11 +786,6 @@ ENDFORM.
 *       003, but 000's request number can be empty (identical to 003) -
 *       in that case we fall back to comparing 003 and 002, hence
 *       versions from TOCs (or with an empty request) are dropped here.
-*       Extracted out of DETERMINE_COMPARISON_MODE so the multi-TR ALV
-*       flow (GET_DEFAULT_VERSIONS) and the version-override path in
-*       PROCESS_SINGLE_OBJECT can reuse the same filtering without the
-*       "This is the first version" messaging that only makes sense for
-*       the auto-detect case.
 *&---------------------------------------------------------------------*
 FORM filter_toc_versions CHANGING ct_version_list TYPE tt_vrsd.
   DATA: lt_trkorr TYPE TABLE OF e070-trkorr,
@@ -892,10 +814,10 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  DETERMINE_COMPARISON_MODE
 *&---------------------------------------------------------------------*
-*       Auto-detect path (Program/Class/Function mode, and TR-ALV mode
-*       when no version override was chosen): filters TOC versions, then
-*       decides whether this object only has one usable version to show
-*       (in which case there is nothing to diff against).
+*       Auto-detect path (used when no version override was chosen):
+*       filters TOC versions, then decides whether this object only has
+*       one usable version to show (in which case there is nothing to
+*       diff against).
 *&---------------------------------------------------------------------*
 FORM determine_comparison_mode CHANGING ct_version_list     TYPE tt_vrsd
                                          cv_only_one_version TYPE abap_bool.
@@ -1114,8 +1036,8 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
 
     " Capture the real line number FIRST - the block-header APPEND below
     " (into LT_BLOCK_BUFFER, a different table) resets SY-TABIX as a
-    " side effect, which previously corrupted the "LINE n" label on the
-    " very first line of every block (always showed as "LINE 1").
+    " side effect, which would otherwise corrupt the "LINE n" label on
+    " the very first line of every block.
     lv_line_no = sy-tabix.
 
     lv_text = ls_unified-line.
@@ -1193,9 +1115,58 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
+*&      Form  CONFIRM_OVERWRITE_IF_EXISTS
+*&---------------------------------------------------------------------*
+*       If GV_FULL_PATH already exists on the frontend, asks the user
+*       to confirm before it gets overwritten. CV_PROCEED stays TRUE
+*       whenever the file doesn't exist yet, or the user confirms.
+*&---------------------------------------------------------------------*
+FORM confirm_overwrite_if_exists CHANGING cv_proceed TYPE abap_bool.
+  DATA: lv_exists TYPE abap_bool,
+        lv_answer TYPE c LENGTH 1.
+
+  cv_proceed = abap_true.
+
+  cl_gui_frontend_services=>file_exist(
+    EXPORTING
+      file   = gv_full_path
+    RECEIVING
+      result = lv_exists
+    EXCEPTIONS
+      OTHERS = 1 ).
+
+  CHECK lv_exists = abap_true.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar       = 'File Already Exists'
+      text_question  = |{ gv_full_path } already exists. Overwrite it?|
+      text_button_1  = 'Yes'
+      text_button_2  = 'No'
+      default_button = '2'
+    IMPORTING
+      answer         = lv_answer
+    EXCEPTIONS
+      text_not_found = 1
+      OTHERS         = 2.
+
+  IF lv_answer <> '1'.
+    cv_proceed = abap_false.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *&      Form  DOWNLOAD_OUTPUT_FILE
 *&---------------------------------------------------------------------*
 FORM download_output_file.
+  DATA lv_proceed TYPE abap_bool.
+
+  PERFORM confirm_overwrite_if_exists CHANGING lv_proceed.
+  IF lv_proceed = abap_false.
+    WRITE: / 'Download cancelled - existing file was not overwritten.'.
+    RETURN.
+  ENDIF.
+
   CALL FUNCTION 'GUI_DOWNLOAD'
     EXPORTING
       filename         = gv_full_path
@@ -1214,7 +1185,7 @@ FORM download_output_file.
 ENDFORM.
 
 *&=======================================================================*
-*& Multi-TR ALV review screen (TR mode only)
+*& ALV review screen flows (TR / Program / Class / Function)
 *&=======================================================================*
 
 *&---------------------------------------------------------------------*
@@ -1236,7 +1207,8 @@ FORM run_multi_tr_flow.
   PERFORM build_multi_tr_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_multi_output_path.
+  PERFORM determine_alv_output_path USING CONV string( gt_entered_trs[ 1 ] )
+                                           lines( gt_entered_trs ) 'TO'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
@@ -1246,21 +1218,74 @@ FORM run_multi_tr_flow.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
+*&      Form  RUN_PROG_ALV_FLOW
+*&---------------------------------------------------------------------*
+*       Entry point for Program mode: builds the union of includes
+*       across every entered program, shows them on the same ALV review
+*       screen (9000), then processes only the checked rows.
+*&---------------------------------------------------------------------*
+FORM run_prog_alv_flow.
+  IF so_prog IS INITIAL.
+    MESSAGE 'Please enter at least one Program.' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  PERFORM build_multi_prog_object_list.
+  CHECK gv_error = abap_false.
+
+  PERFORM determine_alv_output_path USING CONV string( so_prog[ 1 ]-low )
+                                           lines( so_prog ) 'PROG'.
+
+  CLEAR gv_multi_cancelled.
+  CALL SCREEN 9000.
+
+  CHECK gv_multi_cancelled = abap_false.
+  PERFORM download_output_file.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_MULTI_PROG_OBJECT_LIST
+*&---------------------------------------------------------------------*
+FORM build_multi_prog_object_list.
+  DATA lv_prog TYPE sy-repid.
+
+  CLEAR: gt_e071, gt_multi_obj, gv_error.
+
+  LOOP AT so_prog.
+    lv_prog = so_prog-low.
+    PERFORM build_object_list_from_prog USING lv_prog.
+  ENDLOOP.
+
+  IF gt_e071 IS INITIAL.
+    MESSAGE 'No valid Programs found.' TYPE 'S' DISPLAY LIKE 'E'.
+    gv_error = abap_true.
+    RETURN.
+  ENDIF.
+
+  PERFORM convert_e071_to_multi_obj.
+  PERFORM enrich_multi_objects.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *&      Form  RUN_CLASS_ALV_FLOW
 *&---------------------------------------------------------------------*
-*       Entry point for Class mode when no specific method was chosen
-*       (whole class): builds the class's includes/methods, shows them
-*       on the SAME ALV review screen (9000) used for TR mode, then
-*       processes only the checked rows once the user presses Execute.
-*       Back/Exit/Cancel abandon the run entirely, same as TR mode.
-*       Class mode WITH specific methods chosen skips this screen
-*       entirely (see MAIN) - there's nothing to pick from in that case.
+*       Entry point for Class mode: builds every entered class's
+*       definition/public/protected/private section includes and all
+*       their methods, shows them on the ALV review screen (9000), then
+*       processes only the checked rows. Method selection happens here
+*       in the ALV rather than on the selection screen.
 *&---------------------------------------------------------------------*
 FORM run_class_alv_flow.
+  IF so_clas IS INITIAL.
+    MESSAGE 'Please enter at least one Class.' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
   PERFORM build_class_object_list.
   CHECK gv_error = abap_false.
 
-  PERFORM determine_output_path.
+  PERFORM determine_alv_output_path USING CONV string( so_clas[ 1 ]-low )
+                                           lines( so_clas ) 'CLAS'.
 
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
@@ -1272,37 +1297,85 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_CLASS_OBJECT_LIST
 *&---------------------------------------------------------------------*
-*       Reuses BUILD_OBJECT_LIST (-> BUILD_OBJECT_LIST_FROM_CLASS) and
-*       ADD_CLASS_METHODS exactly as the non-ALV Class flow does, then
-*       converts the resulting GT_E071 rows into GT_MULTI_OBJ rows for
-*       the ALV. The bare CLAS entry itself is skipped - it's the class
-*       object, not one of its includes; only the definition/public/
-*       protected/private section includes and the individual methods
-*       are shown as checkable rows. ENRICH_MULTI_OBJECTS (shared with
-*       TR mode) fills in each row's current/compare-against version.
+*       Loops SO_CLAS through BUILD_OBJECT_LIST_FROM_CLASS, then
+*       ADD_CLASS_METHODS expands every collected class into its
+*       methods, then CONVERT_E071_TO_MULTI_OBJ turns the result into
+*       ALV rows (excluding the bare CLAS entries themselves).
 *&---------------------------------------------------------------------*
 FORM build_class_object_list.
-  CLEAR gt_multi_obj.
+  DATA lv_clas TYPE seoclsname.
 
-  PERFORM build_object_list.
-  CHECK gv_error = abap_false.
+  CLEAR: gt_e071, gt_multi_obj, gr_class_name, gv_error.
 
-  PERFORM add_class_methods.
-
-  LOOP AT gt_e071 INTO DATA(ls_e071) WHERE object <> 'CLAS'.
-    APPEND VALUE #( checked     = abap_true
-                     pgmid       = ls_e071-pgmid
-                     object      = ls_e071-object
-                     obj_name    = ls_e071-obj_name
-                     obj_display = |{ ls_e071-obj_name } { ls_e071-object }| ) TO gt_multi_obj.
+  LOOP AT so_clas.
+    lv_clas = so_clas-low.
+    PERFORM build_object_list_from_class USING lv_clas.
   ENDLOOP.
 
-  IF gt_multi_obj IS INITIAL.
-    MESSAGE 'No includes found for this class.' TYPE 'S' DISPLAY LIKE 'E'.
+  IF gt_e071 IS INITIAL.
+    MESSAGE 'No valid Classes found.' TYPE 'S' DISPLAY LIKE 'E'.
     gv_error = abap_true.
     RETURN.
   ENDIF.
 
+  PERFORM add_class_methods.
+  PERFORM convert_e071_to_multi_obj.
+
+  IF gt_multi_obj IS INITIAL.
+    MESSAGE 'No includes found for the selected class(es).' TYPE 'S' DISPLAY LIKE 'E'.
+    gv_error = abap_true.
+    RETURN.
+  ENDIF.
+
+  PERFORM enrich_multi_objects.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  RUN_FUNC_ALV_FLOW
+*&---------------------------------------------------------------------*
+*       Entry point for Function mode: builds one row per entered
+*       function module, shows them on the ALV review screen (9000),
+*       then processes only the checked rows.
+*&---------------------------------------------------------------------*
+FORM run_func_alv_flow.
+  IF so_func IS INITIAL.
+    MESSAGE 'Please enter at least one Function Module.' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  PERFORM build_multi_func_object_list.
+  CHECK gv_error = abap_false.
+
+  PERFORM determine_alv_output_path USING CONV string( so_func[ 1 ]-low )
+                                           lines( so_func ) 'FUNC'.
+
+  CLEAR gv_multi_cancelled.
+  CALL SCREEN 9000.
+
+  CHECK gv_multi_cancelled = abap_false.
+  PERFORM download_output_file.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_MULTI_FUNC_OBJECT_LIST
+*&---------------------------------------------------------------------*
+FORM build_multi_func_object_list.
+  DATA lv_func TYPE rs38l_fnam.
+
+  CLEAR: gt_e071, gt_multi_obj, gv_error.
+
+  LOOP AT so_func.
+    lv_func = so_func-low.
+    PERFORM build_object_list_from_func USING lv_func.
+  ENDLOOP.
+
+  IF gt_e071 IS INITIAL.
+    MESSAGE 'No valid Function Modules found.' TYPE 'S' DISPLAY LIKE 'E'.
+    gv_error = abap_true.
+    RETURN.
+  ENDIF.
+
+  PERFORM convert_e071_to_multi_obj.
   PERFORM enrich_multi_objects.
 ENDFORM.
 
@@ -1531,7 +1604,7 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Fills in CUR_VERSNO/CUR_DISPLAY/CMP_VERSNO for every row using
 *       GET_DEFAULT_VERSIONS (the silent, ALV-prefill equivalent of
-*       DETERMINE_COMPARISON_MODE).
+*       DETERMINE_COMPARISON_MODE). Shared by all four ALV flows.
 *&---------------------------------------------------------------------*
 FORM enrich_multi_objects.
   DATA: lv_object_type TYPE e071-object,
@@ -1562,7 +1635,7 @@ FORM enrich_multi_objects.
       " TR mode: MOST_RECENT_TR is populated.
       <fs_multi>-cur_display = |Version { <fs_multi>-cur_versno } (TR: { <fs_multi>-most_recent_tr })|.
     ELSE.
-      " Class mode: no TR context for these rows.
+      " Program/Class/Function mode: no TR context for these rows.
       <fs_multi>-cur_display = |Version { <fs_multi>-cur_versno }|.
     ENDIF.
   ENDLOOP.
@@ -1678,6 +1751,23 @@ FORM build_multi_tr_fieldcat CHANGING ct_fieldcat TYPE lvc_t_fcat.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
+*&      Form  REFRESH_ALV_DISPLAY
+*&---------------------------------------------------------------------*
+*       Shared helper: pushes GT_MULTI_OBJ changes made directly (i.e.
+*       not through a grid-driven edit) onto the grid's on-screen buffer,
+*       keeping the current scroll position and selection stable.
+*&---------------------------------------------------------------------*
+FORM refresh_alv_display.
+  DATA ls_stable TYPE lvc_s_stbl.
+
+  CHECK go_alv_grid IS BOUND.
+
+  ls_stable-row = abap_true.
+  ls_stable-col = abap_true.
+  go_alv_grid->refresh_table_display( is_stable = ls_stable ).
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *&      Form  PROCESS_CHECKED_MULTI_OBJECTS
 *&---------------------------------------------------------------------*
 *       Feeds every checked row into the existing per-object pipeline,
@@ -1714,8 +1804,7 @@ ENDFORM.
 FORM validate_checked_versions.
   DATA: lv_valid     TYPE abap_bool,
         lv_bad_count TYPE i,
-        lv_bad_name  TYPE string,
-        ls_stable    TYPE lvc_s_stbl.
+        lv_bad_name  TYPE string.
 
   CLEAR gv_error.
 
@@ -1750,11 +1839,7 @@ FORM validate_checked_versions.
     ENDIF.
   ENDIF.
 
-  IF go_alv_grid IS BOUND.
-    ls_stable-row = abap_true.
-    ls_stable-col = abap_true.
-    go_alv_grid->refresh_table_display( is_stable = ls_stable ).
-  ENDIF.
+  PERFORM refresh_alv_display.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1804,10 +1889,10 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *& Screen 9000 PBO/PAI
 *&---------------------------------------------------------------------*
-*       Screen 9000 itself (a Custom Control named 'ALV_CONTAINER', and
-*       a GUI status 'STATUS_9000' with function codes EXEC/BACK/EXIT/
-*       CANC) must be created manually in SE51/SE41 - see delivery notes.
-*       Flow logic needed on screen 9000:
+*       Screen 9000 itself (a Custom Control named 'ALV_CONTAINER') and
+*       GUI status 'STATUS_9000' (function codes EXEC/BACK/EXIT/CANC/
+*       SELALL/DESELALL) must be created manually in SE51/SE41 - see
+*       delivery notes. Flow logic needed on screen 9000:
 *         PBO: MODULE status_9000.
 *         PAI: MODULE user_command_9000.
 *&---------------------------------------------------------------------*
@@ -1841,5 +1926,17 @@ MODULE user_command_9000 INPUT.
       " Abandon the run entirely - nothing gets processed or written.
       gv_multi_cancelled = abap_true.
       LEAVE TO SCREEN 0.
+
+    WHEN 'SELALL'.
+      LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_sel>).
+        <fs_sel>-checked = abap_true.
+      ENDLOOP.
+      PERFORM refresh_alv_display.
+
+    WHEN 'DESELALL'.
+      LOOP AT gt_multi_obj ASSIGNING FIELD-SYMBOL(<fs_desel>).
+        <fs_desel>-checked = abap_false.
+      ENDLOOP.
+      PERFORM refresh_alv_display.
   ENDCASE.
 ENDMODULE.
