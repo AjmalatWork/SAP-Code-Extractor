@@ -38,10 +38,14 @@ FUNCTION zcr_get_dependency_obj_new.
   " (for interface methods this is the plain method name, while NAME keeps
   " the "INTERFACE~METHOD" form expected in the output). PARENT is only
   " set for METH candidates (owning class/interface, needed by RTTI).
+  " ENRICH_TYPE is normally the same as TYPE, but for an 'OM' (Object
+  " Method) row found via REPOSITORY_ENVIRONMENT_RFC it's set to 'METH' so
+  " it still gets RTTI-enriched, while the OUTPUT type stays 'OM' as-is.
   TYPES: BEGIN OF ty_candidate,
            type        TYPE string,
            name        TYPE string,
            lookup_name TYPE string,
+           enrich_type TYPE string,
            parent      TYPE string,
          END OF ty_candidate.
 
@@ -137,12 +141,18 @@ FUNCTION zcr_get_dependency_obj_new.
 *            CONTINUE.
 *          ENDIF.
 
-          " NOTE: METH candidates discovered here (if any) get no PARENT,
-          " so the shared enrichment step below leaves them unenriched -
-          " REPOSITORY_ENVIRONMENT_RFC doesn't reliably expose an owning
-          " class name in a form RTTI can consume.
+          " 'OM' (Object Method) rows are method-call references, e.g. a
+          " call like ZCL_FOO=>BAR( ) - SENVI-ENCL_OBJ carries the owning
+          " class/interface name, so these get enriched the same way as
+          " a real METH dependency (output TYPE stays 'OM', unchanged).
           APPEND VALUE #( type = ls_env-type name = ls_env-object
-                           lookup_name = ls_env-object ) TO lt_candidates.
+                           lookup_name = ls_env-object
+                           enrich_type = COND #( WHEN ls_env-type = 'OM'
+                                                  THEN 'METH'
+                                                  ELSE ls_env-type )
+                           parent = COND #( WHEN ls_env-type = 'OM'
+                                             THEN ls_env-encl_obj
+                                             ELSE '' ) ) TO lt_candidates.
 
           "*****************************************
           " prepare List of  DDIC Objects
@@ -177,7 +187,8 @@ FUNCTION zcr_get_dependency_obj_new.
           ENDIF.
 
           APPEND VALUE #( type = 'FUNC' name = ls_func-funcname
-                           lookup_name = ls_func-funcname ) TO lt_candidates.
+                           lookup_name = ls_func-funcname
+                           enrich_type = 'FUNC' ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -198,7 +209,8 @@ FUNCTION zcr_get_dependency_obj_new.
           ENDIF.
 
           APPEND VALUE #( type = 'INCL' name = ls_include-include
-                           lookup_name = ls_include-include ) TO lt_candidates.
+                           lookup_name = ls_include-include
+                           enrich_type = 'INCL' ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -217,6 +229,7 @@ FUNCTION zcr_get_dependency_obj_new.
 
           APPEND VALUE #( type = 'METH' name = ls_method-cmpname
                            lookup_name = ls_method-cmpname
+                           enrich_type = 'METH'
                            parent = ls_input-object_name ) TO lt_candidates.
 
         ENDLOOP.
@@ -236,7 +249,8 @@ FUNCTION zcr_get_dependency_obj_new.
           " INTF as a referenced object is not enriched (only its member
           " methods are, when the interface itself is later processed).
           APPEND VALUE #( type = 'INTF' name = ls_interface-refclsname
-                           lookup_name = ls_interface-refclsname ) TO lt_candidates.
+                           lookup_name = ls_interface-refclsname
+                           enrich_type = 'INTF' ) TO lt_candidates.
 
         ENDLOOP.
 
@@ -257,6 +271,7 @@ FUNCTION zcr_get_dependency_obj_new.
           APPEND VALUE #( type = 'METH'
                            name = |{ ls_input-object_name }~{ ls_intf_method-cmpname }|
                            lookup_name = ls_intf_method-cmpname
+                           enrich_type = 'METH'
                            parent = ls_input-object_name ) TO lt_candidates.
 
         ENDLOOP.
@@ -291,15 +306,18 @@ FUNCTION zcr_get_dependency_obj_new.
         CONTINUE.
       ENDIF.
 
-      " Enrich PROG/INCL/FUNC/METH with a signature summary. (DOMA/DTEL/
-      " TABL/TTYP/INTF are intentionally excluded - DDIC objects get their
-      " own richer metadata from Z_GET_DDIC_INFO instead, and INTF as a
-      " referenced object has no signature of its own.)
-      IF ls_candidate-type = 'PROG' OR ls_candidate-type = 'INCL' OR
-         ls_candidate-type = 'FUNC' OR ls_candidate-type = 'METH'.
+      " Enrich PROG/INCL/FUNC/METH with a signature summary, using
+      " ENRICH_TYPE rather than TYPE so an 'OM' row (method call found via
+      " REPOSITORY_ENVIRONMENT_RFC) still gets a METH-style RTTI lookup
+      " while its OUTPUT type stays 'OM'. (DOMA/DTEL/TABL/TTYP/INTF are
+      " intentionally excluded - DDIC objects get their own richer
+      " metadata from Z_GET_DDIC_INFO instead, and INTF as a referenced
+      " object has no signature of its own.)
+      IF ls_candidate-enrich_type = 'PROG' OR ls_candidate-enrich_type = 'INCL' OR
+         ls_candidate-enrich_type = 'FUNC' OR ls_candidate-enrich_type = 'METH'.
         CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
           EXPORTING
-            iv_obj_type    = ls_candidate-type
+            iv_obj_type    = ls_candidate-enrich_type
             iv_object_name = ls_candidate-lookup_name
             iv_parent_name = ls_candidate-parent
           IMPORTING
