@@ -126,6 +126,7 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
     CHECK sy-subrc = 0.
 
     DATA: lv_object_type TYPE e071-object,
+          lv_obj_name    TYPE vrsd-objname,
           lt_dummy       TYPE STANDARD TABLE OF vrsd,
           lt_versions    TYPE STANDARD TABLE OF vrsd,
           lt_f4_list     TYPE STANDARD TABLE OF ddshretval.
@@ -135,11 +136,15 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
       lv_object_type = 'REPS'.
     ENDIF.
 
+    " E071-OBJ_NAME (CHAR120) vs VRSD-OBJNAME (CHAR110) - same mismatch
+    " as ENRICH_MULTI_OBJECTS, fixed the same way.
+    lv_obj_name = <fs_row>-obj_name.
+
     " F4 shows ALL versions of this object in the version database - not
     " filtered to the entered TRs, per the brief.
     CALL FUNCTION 'SVRS_GET_VERSION_DIRECTORY_46'
       EXPORTING
-        objname      = <fs_row>-obj_name
+        objname      = lv_obj_name
         objtype      = lv_object_type
       TABLES
         lversno_list = lt_dummy
