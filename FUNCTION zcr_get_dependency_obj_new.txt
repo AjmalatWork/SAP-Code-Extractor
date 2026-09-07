@@ -93,6 +93,9 @@ FUNCTION zcr_get_dependency_obj_new.
         END OF ls_intf_method,
         lt_intf_methods LIKE TABLE OF ls_intf_method.
 
+  DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
+        lo_classdescr TYPE REF TO cl_abap_classdescr.
+
   "=============================
   " Main Processing Loop
   "=============================
@@ -285,6 +288,31 @@ FUNCTION zcr_get_dependency_obj_new.
                            parent = ls_input-object_name ) TO lt_candidates.
 
         ENDLOOP.
+
+        " SEOCOMPO only carries methods the class declares as its own -
+        " a method that is purely a redefinition of an inherited method
+        " (e.g. the DEFINE/EXECUTE_ACTION overrides in an OData _EXT
+        " class) never gets its own SEOCOMPO row, so pick those up via
+        " RTTI's IS_REDEFINED flag instead.
+        CLEAR lo_typedescr.
+        TRY.
+            lo_typedescr = cl_abap_typedescr=>describe_by_name( ls_input-object_name ).
+          CATCH cx_root.
+        ENDTRY.
+
+        IF lo_typedescr IS BOUND AND lo_typedescr->kind = cl_abap_typedescr=>kind_class.
+          lo_classdescr ?= lo_typedescr.
+
+          LOOP AT lo_classdescr->methods INTO DATA(ls_redef_method) WHERE is_redefined = abap_true.
+            READ TABLE lt_methods TRANSPORTING NO FIELDS WITH KEY cmpname = ls_redef_method-name.
+            CHECK sy-subrc <> 0.
+
+            APPEND VALUE #( type = 'METH' name = ls_redef_method-name
+                             lookup_name = ls_redef_method-name
+                             enrich_type = 'METH'
+                             parent = ls_input-object_name ) TO lt_candidates.
+          ENDLOOP.
+        ENDIF.
 
 
         "*****************************************
