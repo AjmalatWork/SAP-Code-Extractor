@@ -1513,6 +1513,11 @@ ENDFORM.
 *       method inherits every TR its owning class hit appeared under, so
 *       a class touched by two entered TRs gets its methods attributed
 *       to both TRs too (matching the class's own TR-list behavior).
+*       Two sources are combined: SEOCOMPO gives the methods the class
+*       declares as its own, but a method that is purely a redefinition
+*       of an inherited method (e.g. the DEFINE/EXECUTE_ACTION overrides
+*       in an OData _EXT class) never gets its own SEOCOMPO row - those
+*       only show up via RTTI's IS_REDEFINED flag.
 *       Reads a snapshot of the CLAS hits and builds new rows separately
 *       before appending once, rather than appending into CT_HITS while
 *       looping over it.
@@ -1520,7 +1525,9 @@ ENDFORM.
 FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
   DATA: lt_clas_hits  TYPE tt_tr_hit,
         lr_class_name TYPE RANGE OF seoclsname,
-        lt_new_hits   TYPE tt_tr_hit.
+        lt_new_hits   TYPE tt_tr_hit,
+        lo_typedescr  TYPE REF TO cl_abap_typedescr,
+        lo_classdescr TYPE REF TO cl_abap_classdescr.
 
   lt_clas_hits = VALUE #( FOR ls_hit IN ct_hits WHERE ( object = 'CLAS' ) ( ls_hit ) ).
   CHECK lt_clas_hits IS NOT INITIAL.
@@ -1534,14 +1541,37 @@ FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
    WHERE clsname IN @lr_class_name
      AND cmptype = '1'.
 
-  CHECK sy-subrc = 0.
-
   LOOP AT lt_methods INTO DATA(ls_meth).
     LOOP AT lt_clas_hits INTO DATA(ls_clas_hit) WHERE obj_name = ls_meth-clsname.
       APPEND VALUE #( pgmid    = 'LIMU'
                        object   = 'METH'
                        obj_name = |{ ls_meth-clsname WIDTH = 30 }{ ls_meth-cmpname }|
                        trkorr   = ls_clas_hit-trkorr ) TO lt_new_hits.
+    ENDLOOP.
+  ENDLOOP.
+
+  LOOP AT lr_class_name INTO DATA(ls_range).
+    CLEAR lo_typedescr.
+    TRY.
+        lo_typedescr = cl_abap_typedescr=>describe_by_name( ls_range-low ).
+      CATCH cx_root.
+        CONTINUE.
+    ENDTRY.
+
+    CHECK lo_typedescr->kind = cl_abap_typedescr=>kind_class.
+    lo_classdescr ?= lo_typedescr.
+
+    LOOP AT lo_classdescr->methods INTO DATA(ls_method) WHERE is_redefined = abap_true.
+      READ TABLE lt_methods TRANSPORTING NO FIELDS
+        WITH KEY clsname = ls_range-low cmpname = ls_method-name.
+      CHECK sy-subrc <> 0.
+
+      LOOP AT lt_clas_hits INTO DATA(ls_clas_hit2) WHERE obj_name = ls_range-low.
+        APPEND VALUE #( pgmid    = 'LIMU'
+                         object   = 'METH'
+                         obj_name = |{ ls_range-low WIDTH = 30 }{ ls_method-name }|
+                         trkorr   = ls_clas_hit2-trkorr ) TO lt_new_hits.
+      ENDLOOP.
     ENDLOOP.
   ENDLOOP.
 
