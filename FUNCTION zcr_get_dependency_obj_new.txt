@@ -217,6 +217,58 @@ FUNCTION zcr_get_dependency_obj_new.
       WHEN 'CLAS'.
 
         "*****************************************
+        " Get real cross-references (what this class's methods actually
+        " call), via the same REPOSITORY_ENVIRONMENT_RFC used for PROG.
+        " The SEOCOMPO/SEOMETAREL queries below only describe the
+        " class's OWN structure (its declared methods, its implemented
+        " interfaces) - neither tells you what those methods call.
+        " Without this, a class's method bodies never contributed any
+        " real dependency at all, including pure redefinitions (e.g. an
+        " OData _EXT class overriding a DPC base-class method) - those
+        " have no local SEOCOMPO row either, but more fundamentally,
+        " even a normally-declared method's own calls were never
+        " detected for CLAS the way they always were for PROG.
+        " REPOSITORY_ENVIRONMENT_RFC works off the class's compiled
+        " cross-reference data, so it picks up calls from every method
+        " regardless of where it's declared.
+        CALL FUNCTION 'REPOSITORY_ENVIRONMENT_RFC'
+          EXPORTING
+            obj_type        = ls_input-obj_type
+            object_name     = ls_input-object_name
+          TABLES
+            environment_tab = lt_env.
+
+        IF sy-subrc = 0.
+          LOOP AT lt_env INTO ls_env.
+
+            IF ls_env-object IS INITIAL.
+              CONTINUE.
+            ENDIF.
+
+            " Same 'OM' handling as the PROG branch above - SENVI-
+            " ENCL_OBJ carries the owning class/interface of a method
+            " call reference.
+            APPEND VALUE #( type = ls_env-type name = ls_env-object
+                             lookup_name = ls_env-object
+                             enrich_type = COND #( WHEN ls_env-type = 'OM'
+                                                    THEN 'METH'
+                                                    ELSE ls_env-type )
+                             parent = COND #( WHEN ls_env-type = 'OM'
+                                               THEN ls_env-encl_obj
+                                               ELSE '' ) ) TO lt_candidates.
+
+            IF ls_env-type = 'DOMA' OR ls_env-type = 'DTEL' OR
+               ls_env-type = 'TABL' OR ls_env-type = 'TTYP'.
+              CLEAR ls_ddic_obj_list.
+              ls_ddic_obj_list-obj_type = ls_env-type.
+              ls_ddic_obj_list-object_name = ls_env-object.
+              APPEND ls_ddic_obj_list TO li_ddic_obj_list.
+            ENDIF.
+
+          ENDLOOP.
+        ENDIF.
+
+        "*****************************************
         " Get Class Methods
         "*****************************************
         SELECT cmpname cmptype
