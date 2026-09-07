@@ -514,8 +514,16 @@ ENDFORM.
 *       For every CLAS entry already in the object list, also extract
 *       and list all of its methods (as separate GT_E071 rows) so the
 *       ALV can offer them as individually checkable objects.
+*       Two sources are combined: SEOCOMPO gives the methods the class
+*       declares as its own, but a method that is purely a redefinition
+*       of an inherited method (e.g. the DEFINE/EXECUTE_ACTION overrides
+*       in an OData _EXT class) never gets its own SEOCOMPO row - those
+*       only show up via RTTI's IS_REDEFINED flag.
 *&---------------------------------------------------------------------*
 FORM add_class_methods.
+  DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
+        lo_classdescr TYPE REF TO cl_abap_classdescr.
+
   LOOP AT gt_e071 ASSIGNING FIELD-SYMBOL(<fs_class>) WHERE object = 'CLAS'.
     APPEND VALUE #( sign = 'I' option = 'EQ' low = <fs_class>-obj_name ) TO gr_class_name.
   ENDLOOP.
@@ -528,11 +536,30 @@ FORM add_class_methods.
    WHERE clsname IN @gr_class_name
      AND cmptype = '1'.
 
-  CHECK sy-subrc = 0.
-
   LOOP AT lt_methods INTO DATA(ls_meth).
     APPEND VALUE #( object = 'METH'
                      obj_name = |{ ls_meth-clsname WIDTH = 30 }{ ls_meth-cmpname }| ) TO gt_e071.
+  ENDLOOP.
+
+  LOOP AT gt_e071 ASSIGNING <fs_class> WHERE object = 'CLAS'.
+    CLEAR lo_typedescr.
+    TRY.
+        lo_typedescr = cl_abap_typedescr=>describe_by_name( <fs_class>-obj_name ).
+      CATCH cx_root.
+        CONTINUE.
+    ENDTRY.
+
+    CHECK lo_typedescr->kind = cl_abap_typedescr=>kind_class.
+    lo_classdescr ?= lo_typedescr.
+
+    LOOP AT lo_classdescr->methods INTO DATA(ls_method) WHERE is_redefined = abap_true.
+      READ TABLE lt_methods TRANSPORTING NO FIELDS
+        WITH KEY clsname = <fs_class>-obj_name cmpname = ls_method-name.
+      CHECK sy-subrc <> 0.
+
+      APPEND VALUE #( object = 'METH'
+                       obj_name = |{ <fs_class>-obj_name WIDTH = 30 }{ ls_method-name }| ) TO gt_e071.
+    ENDLOOP.
   ENDLOOP.
 ENDFORM.
 
