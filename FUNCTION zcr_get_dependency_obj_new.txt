@@ -295,10 +295,14 @@ FUNCTION zcr_get_dependency_obj_new.
         " class) never gets its own SEOCOMPO row, so pick those up via
         " RTTI's IS_REDEFINED flag instead.
         CLEAR lo_typedescr.
-        TRY.
-            lo_typedescr = cl_abap_typedescr=>describe_by_name( ls_input-object_name ).
-          CATCH cx_root.
-        ENDTRY.
+        SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
+          WHERE clsname = @ls_input-object_name.
+        IF sy-subrc = 0.
+          TRY.
+              lo_typedescr = cl_abap_typedescr=>describe_by_name( ls_input-object_name ).
+            CATCH cx_root.
+          ENDTRY.
+        ENDIF.
 
         IF lo_typedescr IS BOUND AND lo_typedescr->kind = cl_abap_typedescr=>kind_class.
           lo_classdescr ?= lo_typedescr.

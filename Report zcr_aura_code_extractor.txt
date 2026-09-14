@@ -542,6 +542,14 @@ FORM add_class_methods.
   ENDLOOP.
 
   LOOP AT gt_e071 ASSIGNING <fs_class> WHERE object = 'CLAS'.
+    " A class picked up from a TR may have been deleted from the system
+    " since - describe_by_name dumps with a non-catchable TYPE_NOT_FOUND
+    " runtime error for a genuinely missing class, not a catchable
+    " exception, so check existence first and skip cleanly.
+    SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
+      WHERE clsname = @<fs_class>-obj_name.
+    CHECK sy-subrc = 0.
+
     CLEAR lo_typedescr.
     TRY.
         lo_typedescr = cl_abap_typedescr=>describe_by_name( <fs_class>-obj_name ).
@@ -1551,6 +1559,13 @@ FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
   ENDLOOP.
 
   LOOP AT lr_class_name INTO DATA(ls_range).
+    " Same deleted-class guard as ADD_CLASS_METHODS - describe_by_name
+    " dumps with a non-catchable runtime error for a class that was
+    " transported but has since been deleted from the system.
+    SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
+      WHERE clsname = @ls_range-low.
+    CHECK sy-subrc = 0.
+
     CLEAR lo_typedescr.
     TRY.
         lo_typedescr = cl_abap_typedescr=>describe_by_name( ls_range-low ).
