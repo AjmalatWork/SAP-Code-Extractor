@@ -97,9 +97,9 @@ DATA: gt_multi_obj       TYPE tt_multi_obj,
 *&---------------------------------------------------------------------*
 *& ALV event handler
 *&---------------------------------------------------------------------*
-*       Only reason this report uses a class at all: CL_GUI_ALV_GRID's
-*       per-cell F4 (ONF4 event) requires an OO event handler - there is
-*       no FORM-based callback for it. All other logic stays in FORMs.
+*       Only here because CL_GUI_ALV_GRID's per-cell F4 (ONF4) needs an
+*       OO event handler - no FORM-based callback exists for it. Kept
+*       everything else in FORMs as usual.
 *&---------------------------------------------------------------------*
 CLASS lcl_alv_event_handler DEFINITION.
   PUBLIC SECTION.
@@ -111,8 +111,7 @@ CLASS lcl_alv_event_handler DEFINITION.
       IMPORTING e_object.
 ENDCLASS.
 
-" GO_ALV_EVENTS must be declared after the class it's typed as - moved
-" here rather than into the Global Data block above for that reason.
+" Has to come after the class it's typed as, can't sit up in Global Data.
 DATA go_alv_events TYPE REF TO lcl_alv_event_handler.
 
 CLASS lcl_alv_event_handler IMPLEMENTATION.
@@ -207,10 +206,8 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD on_toolbar.
-    " Keep-list approach: delete every standard toolbar button except
-    " Sort Ascending/Descending and Find. Deleting the current row (no
-    " INDEX) inside a plain LOOP is the standard, safe idiom for this -
-    " ABAP's LOOP AT adjusts for it correctly.
+    " Keep-list: strip everything except Sort Asc/Desc and Find.
+    " DELETE with no INDEX inside a plain LOOP is fine, ABAP handles it.
     DATA ls_toolbar TYPE stb_button.
 
     LOOP AT e_object->mt_toolbar INTO ls_toolbar.
@@ -270,12 +267,11 @@ START-OF-SELECTION.
 *&---------------------------------------------------------------------*
 *&      Form  MAIN
 *&---------------------------------------------------------------------*
-*       Orchestrates the whole extraction. All four modes now route
-*       through the same interactive ALV review screen (9000): the user
-*       picks which of the candidate objects to include and can
-*       override each one's compare-against version, with methods
-*       selectable directly in the ALV rather than on the selection
-*       screen (there's no separate "specific method" input any more).
+*       Orchestrates the whole extraction. All four modes go through
+*       the same ALV review screen (9000) now - object selection and
+*       compare-version override happen there, methods included.
+*       There's no separate "specific method" field on the selection
+*       screen any more.
 *&---------------------------------------------------------------------*
 FORM main.
   PERFORM determine_extraction_method.
@@ -361,14 +357,11 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  DETERMINE_ALV_OUTPUT_PATH
 *&---------------------------------------------------------------------*
-*       Shared by all four modes. With exactly one entry, keeps the
-*       original single-object naming (CODE_EXTRACT_<name>_<METHOD>.TXT)
-*       unchanged; with more than one, uses
-*       CODE_EXTRACT_MULTI_<label><n>_<METHOD>.TXT, where <n> is how
-*       many were entered. IV_SINGLE_NAME is only used when IV_COUNT = 1
-*       (TR mode passes 'TO' as IV_MULTI_LABEL to keep its existing
-*       CODE_EXTRACT_MULTI_TO<n> naming from before Program/Class/
-*       Function modes gained this same screen).
+*       Shared by all four modes. One entry keeps the old naming
+*       (CODE_EXTRACT_<name>_<METHOD>.TXT); more than one switches to
+*       CODE_EXTRACT_MULTI_<label><n>_<METHOD>.TXT. TR mode passes 'TO'
+*       for IV_MULTI_LABEL, same as before Program/Class/Function got
+*       this screen too.
 *&---------------------------------------------------------------------*
 FORM determine_alv_output_path USING iv_single_name TYPE string
                                       iv_count       TYPE i
@@ -462,12 +455,11 @@ ENDFORM.
 *&      Form  BUILD_OBJECT_LIST_FROM_CLASS
 *&---------------------------------------------------------------------*
 *       Adds a class's definition/public/protected/private section
-*       includes. Method selection now happens in the ALV, not here -
-*       ADD_CLASS_METHODS (called separately) adds every method of
-*       every class collected via GR_CLASS_NAME, and the ALV lets the
-*       user check/uncheck individual ones.
-*       A nonexistent class is skipped with a message rather than
-*       aborting the whole run, same reasoning as the Program builder.
+*       includes. Methods aren't picked here any more - ADD_CLASS_METHODS
+*       adds every method of every class in GR_CLASS_NAME, and the user
+*       checks/unchecks individual ones in the ALV.
+*       Skips a nonexistent class with a message instead of aborting the
+*       whole run, same as the Program builder.
 *&---------------------------------------------------------------------*
 FORM build_object_list_from_class USING iv_clas TYPE seoclsname.
   SELECT SINGLE clsname, clstype
@@ -511,14 +503,14 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  ADD_CLASS_METHODS
 *&---------------------------------------------------------------------*
-*       For every CLAS entry already in the object list, also extract
-*       and list all of its methods (as separate GT_E071 rows) so the
-*       ALV can offer them as individually checkable objects.
-*       Two sources are combined: SEOCOMPO gives the methods the class
-*       declares as its own, but a method that is purely a redefinition
-*       of an inherited method (e.g. the DEFINE/EXECUTE_ACTION overrides
-*       in an OData _EXT class) never gets its own SEOCOMPO row - those
-*       only show up via RTTI's IS_REDEFINED flag.
+*       For every CLAS entry already in the object list, pulls in all
+*       of its methods as separate GT_E071 rows so the ALV can offer
+*       them individually.
+*       SEOCOMPO alone isn't enough - it only has methods the class
+*       declares itself. A method that's just a redefinition (e.g. the
+*       DEFINE/EXECUTE_ACTION overrides you get in an OData _EXT class)
+*       has no SEOCOMPO row of its own, so those get picked up via RTTI's
+*       IS_REDEFINED flag instead.
 *&---------------------------------------------------------------------*
 FORM add_class_methods.
   DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
@@ -542,10 +534,9 @@ FORM add_class_methods.
   ENDLOOP.
 
   LOOP AT gt_e071 ASSIGNING <fs_class> WHERE object = 'CLAS'.
-    " A class picked up from a TR may have been deleted from the system
-    " since - describe_by_name dumps with a non-catchable TYPE_NOT_FOUND
-    " runtime error for a genuinely missing class, not a catchable
-    " exception, so check existence first and skip cleanly.
+    " Class could've been deleted since the TR was released -
+    " describe_by_name dumps outright for that (TYPE_NOT_FOUND, not
+    " catchable), so check it still exists first.
     SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
       WHERE clsname = @<fs_class>-obj_name.
     CHECK sy-subrc = 0.
@@ -595,17 +586,16 @@ ENDFORM.
 *&      Form  PROCESS_SINGLE_OBJECT
 *&---------------------------------------------------------------------*
 *       End-to-end handling of one object: dependency JSON, header,
-*       version retrieval, delta computation and output formatting.
-*       Any CHECK failure below simply skips this object, matching the
-*       original report's CONTINUE behaviour.
+*       version retrieval, delta computation, output formatting.
+*       Any CHECK failure below just skips the object, same as the
+*       old CONTINUE-based behaviour.
 *
-*       IV_COMPARE_VERSNO is only used by the ALV flows: when non-
-*       initial, it overrides the normal auto-detected "previous
-*       version" with the user's chosen baseline from the ALV. Not
-*       declared OPTIONAL - some ABAP versions parse the OPTIONAL
-*       addition after "TYPE <field>" as introducing a further formal
-*       parameter rather than a keyword, so callers always pass it
-*       explicitly (initial = no override) instead.
+*       IV_COMPARE_VERSNO only matters for the ALV flows - when it's
+*       filled in it overrides the auto-detected "previous version"
+*       with whatever the user picked. Left it as a required param
+*       instead of OPTIONAL, since some ABAP versions parse OPTIONAL
+*       after "TYPE <field>" as a 3rd formal parameter instead of a
+*       keyword - callers just pass it blank when there's no override.
 *&---------------------------------------------------------------------*
 FORM process_single_object USING is_e071 TYPE e071
                                   iv_compare_versno TYPE vrsd-versno.
@@ -837,12 +827,11 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  FILTER_TOC_VERSIONS
 *&---------------------------------------------------------------------*
-*       Discards transport-of-copies (TOC) versions and versions with no
-*       request number. Version order is: 000 -> active, 003 -> just
-*       before, 002, 001. The comparison should happen between 000 and
-*       003, but 000's request number can be empty (identical to 003) -
-*       in that case we fall back to comparing 003 and 002, hence
-*       versions from TOCs (or with an empty request) are dropped here.
+*       Drops transport-of-copies (TOC) versions and ones with no
+*       request number. Order is 000 (active), 003 (previous), 002, 001.
+*       Normally you'd diff 000 against 003, but 000's request number
+*       can come back empty just like 003's - so those get filtered out
+*       here and we fall back to comparing 003 against 002 instead.
 *&---------------------------------------------------------------------*
 FORM filter_toc_versions CHANGING ct_version_list TYPE tt_vrsd.
   DATA: lt_trkorr TYPE TABLE OF e070-trkorr,
@@ -1091,10 +1080,9 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
 
   LOOP AT it_unified INTO ls_unified.
 
-    " Capture the real line number FIRST - the block-header APPEND below
-    " (into LT_BLOCK_BUFFER, a different table) resets SY-TABIX as a
-    " side effect, which would otherwise corrupt the "LINE n" label on
-    " the very first line of every block.
+    " Grab SY-TABIX first thing - the block-header APPEND further down
+    " (into LT_BLOCK_BUFFER) resets it, and that used to corrupt the
+    " "LINE n" label on the first line of every block.
     lv_line_no = sy-tabix.
 
     lv_text = ls_unified-line.
@@ -1517,18 +1505,14 @@ ENDFORM.
 *&      Form  EXPAND_CLASS_METHODS
 *&---------------------------------------------------------------------*
 *       Multi-TR equivalent of ADD_CLASS_METHODS: for every CLAS hit in
-*       CT_HITS, also add its individual methods as METH hits - each
-*       method inherits every TR its owning class hit appeared under, so
-*       a class touched by two entered TRs gets its methods attributed
-*       to both TRs too (matching the class's own TR-list behavior).
-*       Two sources are combined: SEOCOMPO gives the methods the class
-*       declares as its own, but a method that is purely a redefinition
-*       of an inherited method (e.g. the DEFINE/EXECUTE_ACTION overrides
-*       in an OData _EXT class) never gets its own SEOCOMPO row - those
-*       only show up via RTTI's IS_REDEFINED flag.
-*       Reads a snapshot of the CLAS hits and builds new rows separately
-*       before appending once, rather than appending into CT_HITS while
-*       looping over it.
+*       CT_HITS, add its methods as METH hits too. Each method picks up
+*       every TR its class appeared under, so a class touched by two
+*       TRs gets its methods tagged with both.
+*       Same SEOCOMPO limitation as ADD_CLASS_METHODS - it misses pure
+*       redefinitions (an OData _EXT class overriding DEFINE etc.), so
+*       those get added separately via RTTI's IS_REDEFINED flag.
+*       Builds the new rows into their own table first and appends once
+*       at the end, rather than growing CT_HITS while looping over it.
 *&---------------------------------------------------------------------*
 FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
   DATA: lt_clas_hits  TYPE tt_tr_hit,
@@ -1559,9 +1543,9 @@ FORM expand_class_methods CHANGING ct_hits TYPE tt_tr_hit.
   ENDLOOP.
 
   LOOP AT lr_class_name INTO DATA(ls_range).
-    " Same deleted-class guard as ADD_CLASS_METHODS - describe_by_name
-    " dumps with a non-catchable runtime error for a class that was
-    " transported but has since been deleted from the system.
+    " Same deleted-class guard as ADD_CLASS_METHODS - a class that's
+    " been deleted since the TR was released makes describe_by_name
+    " dump instead of raising something catchable.
     SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
       WHERE clsname = @ls_range-low.
     CHECK sy-subrc = 0.
@@ -1754,14 +1738,12 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  GET_DEFAULT_VERSIONS
 *&---------------------------------------------------------------------*
-*       Silent equivalent of DETERMINE_COMPARISON_MODE for ALV pre-fill:
-*       same TOC-filtering and same "latest = index 1 / previous = index
-*       2" default logic, but without writing anything to GT_OUTPUT
-*       (that only happens for objects actually processed later).
-*       EV_CMP_VERSNO stays initial when there's nothing to compare
-*       against (single-version object, or FULL mode) - PROCESS_
-*       SINGLE_OBJECT already treats an initial override as "no override,
-*       auto-detect", so this flows through correctly either way.
+*       Same TOC-filtering and latest/previous-version logic as
+*       DETERMINE_COMPARISON_MODE, just for pre-filling the ALV - so it
+*       doesn't touch GT_OUTPUT at all.
+*       EV_CMP_VERSNO comes back blank when there's nothing to compare
+*       (single version, or FULL mode) - PROCESS_SINGLE_OBJECT already
+*       treats a blank override as "auto-detect", so that's fine.
 *&---------------------------------------------------------------------*
 FORM get_default_versions USING iv_objname     TYPE vrsd-objname
                                  iv_object_type TYPE e071-object
@@ -1881,13 +1863,12 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  PROCESS_CHECKED_MULTI_OBJECTS
 *&---------------------------------------------------------------------*
-*       Feeds every checked row into the existing per-object pipeline,
-*       using its (possibly user-edited) CMP_VERSNO as the compare-
-*       against override. Unchecked rows are never touched.
-*       Only reached once VALIDATE_CHECKED_VERSIONS has already
-*       confirmed every checked row's CMP_VERSNO is valid (called from
-*       MODULE USER_COMMAND_9000 before this FORM), so no re-validation
-*       happens here.
+*       Feeds every checked row into the usual per-object pipeline,
+*       using its CMP_VERSNO (possibly edited by the user) as the
+*       override. Unchecked rows are skipped entirely.
+*       VALIDATE_CHECKED_VERSIONS already ran before this (from MODULE
+*       USER_COMMAND_9000) and confirmed every checked row's version is
+*       valid, so nothing gets re-checked here.
 *&---------------------------------------------------------------------*
 FORM process_checked_multi_objects.
   DATA ls_e071 TYPE e071.

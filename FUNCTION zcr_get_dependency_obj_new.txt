@@ -220,20 +220,15 @@ FUNCTION zcr_get_dependency_obj_new.
       WHEN 'CLAS'.
 
         "*****************************************
-        " Get real cross-references (what this class's methods actually
-        " call), via the same REPOSITORY_ENVIRONMENT_RFC used for PROG.
-        " The SEOCOMPO/SEOMETAREL queries below only describe the
-        " class's OWN structure (its declared methods, its implemented
-        " interfaces) - neither tells you what those methods call.
-        " Without this, a class's method bodies never contributed any
-        " real dependency at all, including pure redefinitions (e.g. an
-        " OData _EXT class overriding a DPC base-class method) - those
-        " have no local SEOCOMPO row either, but more fundamentally,
-        " even a normally-declared method's own calls were never
-        " detected for CLAS the way they always were for PROG.
-        " REPOSITORY_ENVIRONMENT_RFC works off the class's compiled
-        " cross-reference data, so it picks up calls from every method
-        " regardless of where it's declared.
+        " Real cross-references - what this class's methods actually
+        " call - via the same REPOSITORY_ENVIRONMENT_RFC as the PROG
+        " branch. SEOCOMPO/SEOMETAREL below only tell you the class's
+        " own structure (methods, interfaces), not what those methods
+        " call, so without this a class never contributed a real
+        " dependency at all - not even for normally-declared methods,
+        " let alone redefinitions like an _EXT class overriding a DPC
+        " base method. RFC works off the compiled xref data, so it
+        " covers every method regardless of where it's declared.
         CALL FUNCTION 'REPOSITORY_ENVIRONMENT_RFC'
           EXPORTING
             obj_type        = ls_input-obj_type
@@ -289,11 +284,9 @@ FUNCTION zcr_get_dependency_obj_new.
 
         ENDLOOP.
 
-        " SEOCOMPO only carries methods the class declares as its own -
-        " a method that is purely a redefinition of an inherited method
-        " (e.g. the DEFINE/EXECUTE_ACTION overrides in an OData _EXT
-        " class) never gets its own SEOCOMPO row, so pick those up via
-        " RTTI's IS_REDEFINED flag instead.
+        " SEOCOMPO only has methods the class declares itself - pure
+        " redefinitions (DEFINE/EXECUTE_ACTION overrides in an _EXT
+        " class) have no row there, pick those up via RTTI instead.
         CLEAR lo_typedescr.
         SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
           WHERE clsname = @ls_input-object_name.
