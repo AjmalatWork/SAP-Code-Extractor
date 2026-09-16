@@ -252,41 +252,45 @@ FUNCTION z_get_ddic_info.
   DELETE ADJACENT DUPLICATES FROM lt_packages_unique.
 
   " BULK FETCH ALL DDIC DATA USING STRICT TYPES
+  " The DD*V/DD*VV sources are views, and a FOR ALL ENTRIES select on
+  " a view can't take any ORDER BY (PRIMARY KEY is the only form FAE
+  " allows, and views don't accept it). Each result is sorted right
+  " after by the field it's read on, so the order is settled anyway.
   IF li_doma_keys IS NOT INITIAL.
-    SELECT * FROM dd01vv INTO TABLE @li_dd01vv FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd01vv INTO TABLE @li_dd01vv FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname.
     IF sy-subrc <> 0. CLEAR li_dd01vv. ENDIF.
 
-    SELECT * FROM dd07v  INTO TABLE @li_dd07v  FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd07v  INTO TABLE @li_dd07v  FOR ALL ENTRIES IN @li_doma_keys WHERE domname = @li_doma_keys-domname.
     IF sy-subrc <> 0. CLEAR li_dd07v. ENDIF.
   ENDIF.
 
   IF li_dtel_keys IS NOT INITIAL.
-    SELECT * FROM dd04vvt INTO TABLE @li_dd04vvt FOR ALL ENTRIES IN @li_dtel_keys WHERE rollname = @li_dtel_keys-rollname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd04vvt INTO TABLE @li_dd04vvt FOR ALL ENTRIES IN @li_dtel_keys WHERE rollname = @li_dtel_keys-rollname.
     IF sy-subrc <> 0. CLEAR li_dd04vvt. ENDIF.
   ENDIF.
 
   IF li_tabl_keys IS NOT INITIAL.
-    SELECT * FROM dd02vv INTO TABLE @li_dd02vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd02vv INTO TABLE @li_dd02vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname.
     IF sy-subrc <> 0. CLEAR li_dd02vv. ENDIF.
 
-    SELECT * FROM dd03vv INTO TABLE @li_dd03vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd03vv INTO TABLE @li_dd03vv FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname.
     IF sy-subrc <> 0. CLEAR li_dd03vv. ENDIF.
 
     SELECT * FROM dd03t  INTO TABLE @li_dd03t  FOR ALL ENTRIES IN @li_tabl_keys WHERE tabname = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
     IF sy-subrc <> 0. CLEAR li_dd03t. ENDIF.
 
-    SELECT * FROM dd12v  INTO TABLE @li_dd12v  FOR ALL ENTRIES IN @li_tabl_keys WHERE sqltab = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd12v  INTO TABLE @li_dd12v  FOR ALL ENTRIES IN @li_tabl_keys WHERE sqltab = @li_tabl_keys-tabname.
     IF sy-subrc <> 0. CLEAR li_dd12v. ENDIF.
 
     SELECT * FROM dd17s  INTO TABLE @li_dd17s  FOR ALL ENTRIES IN @li_tabl_keys WHERE sqltab = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
     IF sy-subrc <> 0. CLEAR li_dd17s. ENDIF.
 
-    SELECT * FROM dd22v  INTO TABLE @li_dd22v  FOR ALL ENTRIES IN @li_tabl_keys WHERE roottab = @li_tabl_keys-tabname ORDER BY PRIMARY KEY.
+    SELECT * FROM dd22v  INTO TABLE @li_dd22v  FOR ALL ENTRIES IN @li_tabl_keys WHERE roottab = @li_tabl_keys-tabname.
     IF sy-subrc <> 0. CLEAR li_dd22v. ENDIF.
   ENDIF.
 
   IF li_ttyp_keys IS NOT INITIAL.
-    SELECT * FROM dd40vv INTO TABLE @li_dd40vv FOR ALL ENTRIES IN @li_ttyp_keys WHERE typename = @li_ttyp_keys-typename ORDER BY PRIMARY KEY.
+    SELECT * FROM dd40vv INTO TABLE @li_dd40vv FOR ALL ENTRIES IN @li_ttyp_keys WHERE typename = @li_ttyp_keys-typename.
     IF sy-subrc <> 0. CLEAR li_dd40vv. ENDIF.
   ENDIF.
 
