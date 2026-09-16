@@ -1,0 +1,546 @@
+FUNCTION zcr_scan_code_signals.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(IV_OBJ_TYPE) TYPE  STRING
+*"     REFERENCE(IV_OBJECT_NAME) TYPE  STRING
+*"     REFERENCE(IV_PARENT_NAME) TYPE  STRING OPTIONAL
+*"  EXPORTING
+*"     REFERENCE(ET_SIGNALS) TYPE  ZCR_TT_CODE_SIGNAL
+*"----------------------------------------------------------------------
+* Scans a dependency's source for review-worthy constructs (DB access,
+* COMMIT, WAIT, RFC, ENQUEUE/DEQUEUE) and reports them as raw facts.
+* The downstream reviewer never sees this source, so these signals are
+* the only way it can know, say, that an FM called inside a LOOP does a
+* SELECT of its own.
+*
+* IV_OBJ_TYPE: PROG / INCL / FUNC / METH (OM is treated as METH).
+* For METH, IV_OBJECT_NAME is the plain method name and IV_PARENT_NAME
+* the owning class/interface.
+*
+* Scanning goes one hop further than the object itself: whatever that
+* object calls is scanned too and reported with LEVEL 2 and a VIA naming
+* the object it was reached through. GC_MAX_DEPTH bounds this.
+*
+* No signature resolution or DDIC export happens at the deeper level -
+* those belong to the objects actually offered for review, not to
+* objects only mined for signals. Anything unreadable (standard SAP,
+* dynamic call targets, deleted objects) is skipped without comment.
+*
+* NOTE: subroutines (FORM) and local classes cannot live inside
+* FUNCTION/ENDFUNCTION, so this stays a single block. It is ordered as
+* source -> logical statements -> signals to keep the phases separable.
+*----------------------------------------------------------------------
+
+  CONSTANTS gc_max_depth TYPE i VALUE 2.
+
+  "=============================
+  " Type Definitions
+  "=============================
+  TYPES: BEGIN OF ty_queue,
+           obj_type TYPE string,
+           name     TYPE string,
+           parent   TYPE string,
+           depth    TYPE i,
+           via      TYPE string,
+         END OF ty_queue.
+
+  TYPES: BEGIN OF ty_pending,
+           type   TYPE string,
+           detail TYPE string,
+         END OF ty_pending.
+
+  TYPES: BEGIN OF ty_tabcache,
+           name  TYPE string,
+           is_db TYPE abap_bool,
+         END OF ty_tabcache.
+
+  "=============================
+  " Data Declarations
+  "=============================
+  DATA: lt_queue   TYPE STANDARD TABLE OF ty_queue WITH EMPTY KEY,
+        ls_queue   TYPE ty_queue,
+        lv_q       TYPE i,
+        lt_visited TYPE STANDARD TABLE OF progname WITH EMPTY KEY,
+        lv_via     TYPE string.
+
+  DATA: lv_progname    TYPE progname,
+        lv_fm_name     TYPE rs38l_fnam,
+        lv_fm_include  TYPE progname,
+        ls_mtdkey      TYPE seocpdkey,
+        lv_meth_incl   TYPE progname,
+        lt_source      TYPE STANDARD TABLE OF string,
+        lv_line        TYPE string.
+
+  DATA: lt_stmts     TYPE STANDARD TABLE OF string,
+        lv_acc       TYPE string,
+        lt_cuts      TYPE STANDARD TABLE OF i WITH EMPTY KEY,
+        lv_cut       TYPE i,
+        lv_cut_len   TYPE i,
+        lv_seg_start TYPE i,
+        lv_seg_len   TYPE i,
+        lv_len       TYPE i,
+        lv_pos       TYPE i,
+        lv_state     TYPE i,
+        lv_char      TYPE c LENGTH 1.
+
+  DATA: lv_stmt       TYPE string,
+        lv_padded     TYPE string,
+        lt_tokens     TYPE STANDARD TABLE OF string WITH EMPTY KEY,
+        lv_token      TYPE string,
+        lv_idx        TYPE i,
+        lv_tok1       TYPE string,
+        lv_tok2       TYPE string,
+        lv_tok3       TYPE string,
+        lv_tok4       TYPE string,
+        lv_after_from TYPE string,
+        lv_after_into TYPE string,
+        lv_from_pos   TYPE i,
+        lv_into_pos   TYPE i.
+
+  DATA: lt_pending  TYPE STANDARD TABLE OF ty_pending WITH EMPTY KEY,
+        ls_pending  TYPE ty_pending,
+        lv_table    TYPE string,
+        lv_chk_tab  TYPE string,
+        lv_variant  TYPE string,
+        lv_fm_lit   TYPE string.
+
+  DATA: lt_tabcache  TYPE STANDARD TABLE OF ty_tabcache WITH EMPTY KEY,
+        ls_tabcache  TYPE ty_tabcache,
+        lv_tabname   TYPE dd02l-tabname,
+        lv_dd_exists TYPE dd02l-tabname.
+
+  DATA: lt_raw    TYPE zcr_tt_code_signal,
+        ls_signal TYPE zcr_ts_code_signal.
+
+  DATA: lt_dep_in TYPE zpoc_tt_obj,
+        lt_next   TYPE zcr_tt_dep_ref,
+        ls_next   TYPE zcr_ts_dep_ref.
+
+  CLEAR et_signals.
+
+  "=============================
+  " Seed the work queue
+  "=============================
+  APPEND VALUE #( obj_type = iv_obj_type
+                  name     = iv_object_name
+                  parent   = iv_parent_name
+                  depth    = 1 ) TO lt_queue.
+
+  lv_q = 1.
+  WHILE lv_q <= lines( lt_queue ).
+
+    ls_queue = lt_queue[ lv_q ].
+    lv_q = lv_q + 1.
+
+    IF ls_queue-depth > gc_max_depth.
+      CONTINUE.
+    ENDIF.
+
+    "=============================
+    " Resolve the object to the program that actually holds its source
+    "=============================
+    CLEAR lv_progname.
+
+    CASE ls_queue-obj_type.
+      WHEN 'PROG' OR 'INCL' OR 'REPS'.
+        lv_progname = ls_queue-name.
+
+      WHEN 'FUNC'.
+        lv_fm_name = ls_queue-name.
+        CALL FUNCTION 'FUNCTION_INCLUDE_INFO'
+          CHANGING
+            funcname            = lv_fm_name
+            include             = lv_fm_include
+          EXCEPTIONS
+            function_not_exists = 1
+            include_not_exists  = 2
+            group_not_exists    = 3
+            no_selections       = 4
+            no_function_include = 5
+            OTHERS              = 6.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+        lv_progname = lv_fm_include.
+
+      WHEN 'METH' OR 'OM'.
+        IF ls_queue-parent IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        ls_mtdkey-clsname = ls_queue-parent.
+        ls_mtdkey-cpdname = ls_queue-name.
+        CALL METHOD cl_oo_classname_service=>get_method_include
+          EXPORTING
+            mtdkey              = ls_mtdkey
+          RECEIVING
+            result              = lv_meth_incl
+          EXCEPTIONS
+            class_not_existing  = 1
+            method_not_existing = 2
+            OTHERS              = 3.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+        lv_progname = lv_meth_incl.
+
+      WHEN OTHERS.
+        CONTINUE.
+    ENDCASE.
+
+    IF lv_progname IS INITIAL.
+      CONTINUE.
+    ENDIF.
+
+    " Cycle guard: keyed on the resolved program, so a method and its own
+    " include can't both be scanned, and A -> B -> A stops at the repeat.
+    READ TABLE lt_visited TRANSPORTING NO FIELDS WITH KEY table_line = lv_progname.
+    IF sy-subrc = 0.
+      CONTINUE.
+    ENDIF.
+    APPEND lv_progname TO lt_visited.
+
+    CLEAR lt_source.
+    READ REPORT lv_progname INTO lt_source.
+    IF sy-subrc <> 0 OR lt_source IS INITIAL.
+      CONTINUE.
+    ENDIF.
+
+    "=============================
+    " Source -> logical statements
+    "
+    " A literal or template never spans lines in ABAP, so quote state is
+    " tracked per line; only statement accumulation carries across lines,
+    " up to the next period that isn't inside a literal. Positions are
+    " collected first and the text sliced afterwards - concatenating one
+    " character at a time gets expensive over a large program.
+    "=============================
+    CLEAR: lt_stmts, lv_acc.
+
+    LOOP AT lt_source INTO lv_line.
+
+      lv_len = strlen( lv_line ).
+      IF lv_len = 0.
+        CONTINUE.
+      ENDIF.
+
+      " '*' only starts a comment in column 1.
+      IF lv_line(1) = '*'.
+        CONTINUE.
+      ENDIF.
+
+      CLEAR lt_cuts.
+      lv_cut_len = lv_len.
+      lv_state   = 0.
+      lv_pos     = 0.
+
+      WHILE lv_pos < lv_len.
+        lv_char = lv_line+lv_pos(1).
+
+        IF lv_state = 0.
+          IF lv_char = ''''.
+            lv_state = 1.
+          ELSEIF lv_char = '|'.
+            lv_state = 2.
+          ELSEIF lv_char = '"'.
+            lv_cut_len = lv_pos.
+            EXIT.
+          ELSEIF lv_char = '.'.
+            APPEND lv_pos TO lt_cuts.
+          ENDIF.
+
+        ELSEIF lv_state = 1.
+          IF lv_char = ''''.
+            IF lv_pos + 1 < lv_len AND lv_line+lv_pos(2) = ''''''.
+              lv_pos = lv_pos + 1.            " doubled '' stays inside
+            ELSE.
+              lv_state = 0.
+            ENDIF.
+          ENDIF.
+
+        ELSE.
+          IF lv_char = '\'.
+            lv_pos = lv_pos + 1.              " escaped char in a template
+          ELSEIF lv_char = '|'.
+            lv_state = 0.
+          ENDIF.
+        ENDIF.
+
+        lv_pos = lv_pos + 1.
+      ENDWHILE.
+
+      lv_seg_start = 0.
+      LOOP AT lt_cuts INTO lv_cut.
+        lv_seg_len = lv_cut - lv_seg_start.
+        IF lv_seg_len > 0.
+          CONCATENATE lv_acc lv_line+lv_seg_start(lv_seg_len)
+                 INTO lv_acc SEPARATED BY space.
+        ENDIF.
+        APPEND lv_acc TO lt_stmts.
+        CLEAR lv_acc.
+        lv_seg_start = lv_cut + 1.
+      ENDLOOP.
+
+      IF lv_seg_start < lv_cut_len.
+        lv_seg_len = lv_cut_len - lv_seg_start.
+        CONCATENATE lv_acc lv_line+lv_seg_start(lv_seg_len)
+               INTO lv_acc SEPARATED BY space.
+      ENDIF.
+
+    ENDLOOP.
+
+    "=============================
+    " Statements -> signals
+    "=============================
+    LOOP AT lt_stmts INTO lv_stmt.
+
+      CONDENSE lv_stmt.
+      IF lv_stmt IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      TRANSLATE lv_stmt TO UPPER CASE.
+
+      CLEAR: lt_tokens, lv_tok1, lv_tok2, lv_tok3, lv_tok4,
+             lv_after_from, lv_after_into, lv_from_pos, lv_into_pos,
+             lt_pending, lv_table, lv_chk_tab, lv_variant, lv_fm_lit.
+
+      " Padded with blanks so CS can match whole words, not substrings.
+      lv_padded = | { lv_stmt } |.
+      SPLIT lv_stmt AT space INTO TABLE lt_tokens.
+
+      LOOP AT lt_tokens INTO lv_token.
+        lv_idx = sy-tabix.
+        CASE lv_idx.
+          WHEN 1. lv_tok1 = lv_token.
+          WHEN 2. lv_tok2 = lv_token.
+          WHEN 3. lv_tok3 = lv_token.
+          WHEN 4. lv_tok4 = lv_token.
+        ENDCASE.
+        IF lv_token = 'FROM' AND lv_from_pos = 0.
+          lv_from_pos   = lv_idx.
+          lv_after_from = VALUE #( lt_tokens[ lv_idx + 1 ] OPTIONAL ).
+        ENDIF.
+        IF lv_token = 'INTO' AND lv_into_pos = 0.
+          lv_into_pos   = lv_idx.
+          lv_after_into = VALUE #( lt_tokens[ lv_idx + 1 ] OPTIONAL ).
+        ENDIF.
+      ENDLOOP.
+
+      CASE lv_tok1.
+
+        WHEN 'SELECT'.
+          lv_table = lv_after_from.
+          IF lv_tok2 = 'SINGLE'.
+            lv_variant = 'SELECT SINGLE'.
+          ELSE.
+            lv_variant = 'SELECT'.
+          ENDIF.
+          IF lv_padded CS ' FOR ALL ENTRIES '.
+            APPEND VALUE #( type = 'db_select_for_all_entries' ) TO lt_pending.
+          ELSE.
+            APPEND VALUE #( type = 'db_select' ) TO lt_pending.
+          ENDIF.
+
+        WHEN 'INSERT'.
+          IF lv_tok2 = 'INTO'.
+            lv_table   = lv_after_into.
+            lv_variant = 'INSERT'.
+            APPEND VALUE #( type = 'db_insert' ) TO lt_pending.
+          ELSEIF lv_into_pos = 0 AND lv_from_pos > 0.
+            lv_table   = lv_tok2.
+            lv_variant = 'INSERT'.
+            APPEND VALUE #( type = 'db_insert' ) TO lt_pending.
+          ENDIF.
+          " anything else is INSERT <line> INTO <itab> - not a DB write
+
+        WHEN 'UPDATE'.
+          " No internal-table UPDATE statement exists, so this is always DB.
+          lv_table   = lv_tok2.
+          lv_variant = 'UPDATE'.
+          APPEND VALUE #( type = 'db_update' ) TO lt_pending.
+
+        WHEN 'MODIFY'.
+          " SCREEN/LINE variants are list and dynpro statements, not tables.
+          " TRANSPORTING and INDEX only exist on the internal-table form.
+          IF lv_tok2 = 'SCREEN' OR lv_tok2 = 'LINE' OR lv_tok2 = 'CURRENT'
+             OR lv_tok2 = 'TABLE'
+             OR lv_padded CS ' TRANSPORTING ' OR lv_padded CS ' INDEX '.
+            " internal table or UI statement - no signal
+          ELSEIF lv_padded CS ' FROM TABLE '.
+            lv_table   = lv_tok2.
+            lv_variant = 'MODIFY'.
+            APPEND VALUE #( type = 'db_modify' ) TO lt_pending.
+          ELSEIF lv_from_pos > 0.
+            " MODIFY <x> FROM <y> is identical for a DB table and an
+            " internal table - only the system knows which <x> is.
+            lv_table   = lv_tok2.
+            lv_chk_tab = lv_tok2.
+            lv_variant = 'MODIFY'.
+            APPEND VALUE #( type = 'db_modify' ) TO lt_pending.
+          ENDIF.
+
+        WHEN 'DELETE'.
+          IF lv_tok2 = 'FROM'.
+            lv_table   = lv_after_from.
+            lv_variant = 'DELETE'.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+          ELSEIF lv_tok2 = 'ADJACENT' OR lv_tok2 = 'TABLE' OR lv_tok2 = 'DATASET'
+                 OR lv_padded CS ' INDEX ' OR lv_padded CS ' WHERE '.
+            " internal table or file operation - no signal
+          ELSEIF lv_from_pos > 0.
+            lv_table   = lv_tok2.
+            lv_variant = 'DELETE'.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+          ELSE.
+            lv_table   = lv_tok2.
+            lv_chk_tab = lv_tok2.
+            lv_variant = 'DELETE'.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+          ENDIF.
+
+        WHEN 'COMMIT'.
+          IF lv_tok2 = 'WORK'.
+            IF lv_padded CS ' AND WAIT '.
+              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK AND WAIT' ) TO lt_pending.
+            ELSE.
+              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK' ) TO lt_pending.
+            ENDIF.
+          ENDIF.
+
+        WHEN 'ROLLBACK'.
+          IF lv_tok2 = 'WORK'.
+            APPEND VALUE #( type = 'rollback_work' detail = 'ROLLBACK WORK' ) TO lt_pending.
+          ENDIF.
+
+        WHEN 'WAIT'.
+          IF lv_tok2 = 'UP'.
+            APPEND VALUE #( type   = 'wait'
+                            detail = |WAIT UP TO { lv_tok4 } SECONDS| ) TO lt_pending.
+          ENDIF.
+
+        WHEN 'CALL'.
+          IF lv_tok2 = 'FUNCTION'.
+            lv_fm_lit = lv_tok3.
+            REPLACE ALL OCCURRENCES OF '''' IN lv_fm_lit WITH ''.
+
+            IF lv_padded CS ' DESTINATION '.
+              APPEND VALUE #( type   = 'rfc_call'
+                              detail = |CALL FUNCTION { lv_tok3 } DESTINATION| ) TO lt_pending.
+            ENDIF.
+
+            " An RFC-enabled lock call is both, so these are independent
+            " of the DESTINATION check above rather than an ELSE branch.
+            IF lv_fm_lit CP 'ENQUEUE_*'.
+              APPEND VALUE #( type   = 'enqueue'
+                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending.
+            ELSEIF lv_fm_lit CP 'DEQUEUE_*'.
+              APPEND VALUE #( type   = 'dequeue'
+                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending.
+            ENDIF.
+          ENDIF.
+
+      ENDCASE.
+
+      IF lt_pending IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      " Only reached for the MODIFY/DELETE shapes that syntax can't settle.
+      IF lv_chk_tab IS NOT INITIAL.
+        READ TABLE lt_tabcache INTO ls_tabcache WITH KEY name = lv_chk_tab.
+        IF sy-subrc <> 0.
+          CLEAR ls_tabcache.
+          ls_tabcache-name = lv_chk_tab.
+          lv_tabname = lv_chk_tab.
+          SELECT SINGLE tabname FROM dd02l INTO lv_dd_exists
+            WHERE tabname = lv_tabname AND as4local = 'A'.
+          IF sy-subrc = 0.
+            ls_tabcache-is_db = abap_true.
+          ENDIF.
+          APPEND ls_tabcache TO lt_tabcache.
+        ENDIF.
+        IF ls_tabcache-is_db = abap_false.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+      " A table name in parentheses is supplied at runtime, so there's no
+      " concrete name to report - the statement still counts though.
+      IF lv_table IS NOT INITIAL AND lv_table(1) = '('.
+        lv_table = 'dynamic table name'.
+      ENDIF.
+
+      LOOP AT lt_pending INTO ls_pending.
+        CLEAR ls_signal.
+        ls_signal-type  = ls_pending-type.
+        ls_signal-level = ls_queue-depth.
+        ls_signal-via   = ls_queue-via.
+
+        IF ls_pending-detail IS NOT INITIAL.
+          ls_signal-detail = ls_pending-detail.
+        ELSEIF lv_table = 'dynamic table name'.
+          ls_signal-detail = |{ lv_variant } on dynamic table name|.
+        ELSEIF lv_table IS NOT INITIAL.
+          ls_signal-detail = |{ lv_variant } on table { lv_table }|.
+        ELSE.
+          ls_signal-detail = lv_variant.
+        ENDIF.
+
+        APPEND ls_signal TO lt_raw.
+      ENDLOOP.
+
+    ENDLOOP.
+
+    "=============================
+    " Queue what this object calls, for the next level down
+    "=============================
+    IF ls_queue-depth < gc_max_depth.
+
+      IF ls_queue-obj_type = 'METH' OR ls_queue-obj_type = 'OM'.
+        lv_via = |{ ls_queue-parent }~{ ls_queue-name }|.
+      ELSE.
+        lv_via = ls_queue-name.
+      ENDIF.
+
+      CLEAR: lt_dep_in, lt_next.
+      APPEND VALUE #( obj_type = 'PROG' object_name = lv_progname ) TO lt_dep_in.
+
+      CALL FUNCTION 'ZCR_GET_DEPENDENCY_OBJ_NEW'
+        EXPORTING
+          ii_objects      = lt_dep_in
+          iv_lightweight  = abap_true
+        IMPORTING
+          et_dependencies = lt_next.
+
+      LOOP AT lt_next INTO ls_next.
+        CHECK ls_next-enrich_type = 'PROG' OR ls_next-enrich_type = 'INCL'
+           OR ls_next-enrich_type = 'FUNC' OR ls_next-enrich_type = 'METH'.
+
+        APPEND VALUE #( obj_type = ls_next-enrich_type
+                        name     = ls_next-lookup_name
+                        parent   = ls_next-parent
+                        depth    = ls_queue-depth + 1
+                        via      = lv_via ) TO lt_queue.
+      ENDLOOP.
+    ENDIF.
+
+  ENDWHILE.
+
+  "=============================
+  " Collapse repeats of the same fact into one row with a count
+  "=============================
+  LOOP AT lt_raw INTO ls_signal.
+    READ TABLE et_signals ASSIGNING FIELD-SYMBOL(<fs_sig>)
+      WITH KEY type   = ls_signal-type
+               detail = ls_signal-detail
+               level  = ls_signal-level
+               via    = ls_signal-via.
+    IF sy-subrc = 0.
+      <fs_sig>-count = <fs_sig>-count + 1.
+    ELSE.
+      ls_signal-count = 1.
+      APPEND ls_signal TO et_signals.
+    ENDIF.
+  ENDLOOP.
+
+ENDFUNCTION.

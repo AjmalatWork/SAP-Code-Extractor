@@ -3,10 +3,22 @@ FUNCTION zcr_get_dependency_obj_new.
 *"*"Local Interface:
 *"  IMPORTING
 *"     REFERENCE(II_OBJECTS) TYPE  ZPOC_TT_OBJ
+*"     REFERENCE(IV_LIGHTWEIGHT) TYPE  ABAP_BOOL DEFAULT ABAP_FALSE
 *"  EXPORTING
 *"     REFERENCE(EV_JSON) TYPE  STRING
 *"     REFERENCE(EV_DDIC_JSON) TYPE  STRING
+*"     REFERENCE(ET_DEPENDENCIES) TYPE  ZCR_TT_DEP_REF
 *"----------------------------------------------------------------------
+* IV_LIGHTWEIGHT strips this down to plain callee discovery: the CASE
+* below still runs, but no signature lookup, no code-signal scan and no
+* DDIC export. ZCR_SCAN_CODE_SIGNALS calls it that way to find out what
+* a given object calls without paying for enrichment it won't use - and
+* because letting it run the signal scan again there would recurse past
+* the depth cap that FM is responsible for holding.
+*
+* ET_DEPENDENCIES returns the same candidates as structured rows rather
+* than JSON, so a caller after the call graph doesn't have to parse
+* EV_JSON back apart.
 * NOTE: subroutines (FORM) cannot be nested inside FUNCTION/ENDFUNCTION,
 * so this FM stays a single block. Repetition is instead avoided by having
 * each object-type branch below only COLLECT raw dependency candidates
@@ -18,9 +30,10 @@ FUNCTION zcr_get_dependency_obj_new.
   " Type Definitions
   "=============================
   TYPES: BEGIN OF ty_dependency,
-           type      TYPE string,
-           name      TYPE string,
-           signature TYPE zcr_ts_signature,
+           type         TYPE string,
+           name         TYPE string,
+           signature    TYPE zcr_ts_signature,
+           code_signals TYPE zcr_tt_code_signal,
          END OF ty_dependency.
 
   TYPES: ty_t_dependency TYPE STANDARD TABLE OF ty_dependency WITH EMPTY KEY.
@@ -95,6 +108,8 @@ FUNCTION zcr_get_dependency_obj_new.
 
   DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
         lo_classdescr TYPE REF TO cl_abap_classdescr.
+
+  CLEAR: ev_json, ev_ddic_json, et_dependencies.
 
   "=============================
   " Main Processing Loop
@@ -390,8 +405,9 @@ FUNCTION zcr_get_dependency_obj_new.
       " intentionally excluded - DDIC objects get their own richer
       " metadata from Z_GET_DDIC_INFO instead, and INTF as a referenced
       " object has no signature of its own.)
-      IF ls_candidate-enrich_type = 'PROG' OR ls_candidate-enrich_type = 'INCL' OR
-         ls_candidate-enrich_type = 'FUNC' OR ls_candidate-enrich_type = 'METH'.
+      IF iv_lightweight = abap_false AND
+        ( ls_candidate-enrich_type = 'PROG' OR ls_candidate-enrich_type = 'INCL' OR
+          ls_candidate-enrich_type = 'FUNC' OR ls_candidate-enrich_type = 'METH' ).
         CALL FUNCTION 'ZCR_GET_OBJECT_SIGNATURE'
           EXPORTING
             iv_obj_type    = ls_candidate-enrich_type
@@ -399,9 +415,26 @@ FUNCTION zcr_get_dependency_obj_new.
             iv_parent_name = ls_candidate-parent
           IMPORTING
             es_signature   = ls_dep-signature.
+
+        " Flag risky constructs inside this dependency (and inside what it
+        " calls in turn) - the reviewer downstream never sees its source,
+        " so this is the only way a SELECT buried in a called FM surfaces.
+        CALL FUNCTION 'ZCR_SCAN_CODE_SIGNALS'
+          EXPORTING
+            iv_obj_type    = ls_candidate-enrich_type
+            iv_object_name = ls_candidate-lookup_name
+            iv_parent_name = ls_candidate-parent
+          IMPORTING
+            et_signals     = ls_dep-code_signals.
       ENDIF.
 
       APPEND ls_dep TO ls_output-dependencies.
+
+      APPEND VALUE #( type        = ls_candidate-type
+                      name        = ls_candidate-name
+                      lookup_name = ls_candidate-lookup_name
+                      enrich_type = ls_candidate-enrich_type
+                      parent      = ls_candidate-parent ) TO et_dependencies.
 
     ENDLOOP.
 
@@ -412,11 +445,13 @@ FUNCTION zcr_get_dependency_obj_new.
   "=============================
   " Convert to JSON
   "=============================
-  ev_json = /ui2/cl_json=>serialize(
-    data     = lt_output
-    compress = abap_true ).
+  IF iv_lightweight = abap_false.
+    ev_json = /ui2/cl_json=>serialize(
+      data     = lt_output
+      compress = abap_true ).
+  ENDIF.
 
-  IF li_ddic_obj_list IS NOT INITIAL.
+  IF li_ddic_obj_list IS NOT INITIAL AND iv_lightweight = abap_false.
 ** Here We are retrieving all the DDIC Objects in JSON format.
 ** Returned as its own independent JSON in EV_DDIC_JSON - no longer
 ** string-concatenated onto EV_JSON.
