@@ -1,0 +1,122 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZCR_AURA_CODE_EXTRACTOR_TOP
+*&---------------------------------------------------------------------*
+*       Global types, data and the ALV event handler definition for
+*       ZCR_AURA_CODE_EXTRACTOR. The class implementation stays in the
+*       main program - only declarations live here.
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*& Local Types
+*&---------------------------------------------------------------------*
+TYPES: ts_line_255 TYPE c LENGTH 255.
+
+TYPES: BEGIN OF ts_output,
+         line TYPE string,
+       END OF ts_output,
+       tt_output TYPE STANDARD TABLE OF ts_output WITH EMPTY KEY.
+
+TYPES: BEGIN OF ts_code_line,
+         line TYPE ts_line_255,
+       END OF ts_code_line,
+       tt_code_line TYPE STANDARD TABLE OF ts_code_line WITH EMPTY KEY.
+
+TYPES: BEGIN OF ts_delta,
+         vrsflag TYPE c LENGTH 4,
+         number  TYPE i,
+         line    TYPE ts_line_255,
+       END OF ts_delta,
+       tt_delta TYPE STANDARD TABLE OF ts_delta WITH EMPTY KEY.
+
+TYPES: BEGIN OF ts_unified,
+         flag TYPE c LENGTH 1,
+         line TYPE ts_line_255,
+       END OF ts_unified,
+       tt_unified TYPE STANDARD TABLE OF ts_unified WITH EMPTY KEY.
+
+TYPES: tt_trdir  TYPE STANDARD TABLE OF trdir  WITH EMPTY KEY,
+       tt_xtrdir TYPE STANDARD TABLE OF xtrdir WITH EMPTY KEY,
+       tt_vrsd   TYPE STANDARD TABLE OF vrsd   WITH EMPTY KEY,
+       tt_e071   TYPE STANDARD TABLE OF e071   WITH EMPTY KEY.
+
+TYPES: BEGIN OF ts_e070_min,
+         trkorr     TYPE e070-trkorr,
+         trfunction TYPE e070-trfunction,
+       END OF ts_e070_min.
+
+TYPES: BEGIN OF ts_e070_recency,
+         trkorr  TYPE e070-trkorr,
+         as4date TYPE e070-as4date,
+         as4time TYPE e070-as4time,
+       END OF ts_e070_recency.
+
+" One raw "object found in transport X" hit, before dedup across TRs.
+TYPES: BEGIN OF ts_tr_hit,
+         pgmid    TYPE e071-pgmid,
+         object   TYPE e071-object,
+         obj_name TYPE e071-obj_name,
+         trkorr   TYPE e070-trkorr,
+       END OF ts_tr_hit,
+       tt_tr_hit TYPE STANDARD TABLE OF ts_tr_hit WITH EMPTY KEY.
+
+" One row of the ALV review screen (TR / Program / Class / Function).
+TYPES: BEGIN OF ts_multi_obj,
+         checked        TYPE abap_bool,
+         pgmid          TYPE e071-pgmid,
+         object         TYPE e071-object,
+         obj_name       TYPE e071-obj_name,
+         obj_display    TYPE string,
+         tr_list        TYPE string,
+         most_recent_tr TYPE e070-trkorr,
+         cur_versno     TYPE vrsd-versno,
+         cur_display    TYPE string,
+         cmp_versno     TYPE vrsd-versno,
+         cmp_tr         TYPE string,
+         cellcolor      TYPE lvc_t_scol,
+       END OF ts_multi_obj,
+       tt_multi_obj TYPE STANDARD TABLE OF ts_multi_obj WITH EMPTY KEY.
+
+*&---------------------------------------------------------------------*
+*& Global Data
+*&---------------------------------------------------------------------*
+DATA: gt_e071        TYPE tt_e071,
+      gt_output      TYPE tt_output,
+      gt_dep         TYPE zpoc_tt_obj,
+      gv_dep_json    TYPE string,
+      gv_ddic_json   TYPE string,
+      gr_class_name  TYPE RANGE OF seoclsname,
+      gv_extr_method TYPE string,
+      gv_filename    TYPE string,
+      gv_full_path   TYPE string,
+      gv_error       TYPE abap_bool,
+      gv_tr_dummy    TYPE trkorr,
+      gv_prog_dummy  TYPE sy-repid,
+      gv_clas_dummy  TYPE seoclsname,
+      gv_func_dummy  TYPE rs38l_fnam.
+
+" ALV review screen (9000) state - shared by TR/Program/Class/Function.
+DATA: gt_multi_obj       TYPE tt_multi_obj,
+      gt_entered_trs     TYPE STANDARD TABLE OF e070-trkorr WITH EMPTY KEY,
+      go_container       TYPE REF TO cl_gui_custom_container,
+      go_alv_grid        TYPE REF TO cl_gui_alv_grid,
+      gv_multi_cancelled TYPE abap_bool.
+
+*&---------------------------------------------------------------------*
+*& ALV event handler
+*&---------------------------------------------------------------------*
+*       Only here because CL_GUI_ALV_GRID's per-cell F4 (ONF4) needs an
+*       OO event handler - no FORM-based callback exists for it. Kept
+*       everything else in FORMs as usual.
+*&---------------------------------------------------------------------*
+CLASS lcl_alv_event_handler DEFINITION FINAL.
+  PUBLIC SECTION.
+    METHODS on_f4 FOR EVENT onf4 OF cl_gui_alv_grid
+      IMPORTING e_fieldname es_row_no er_event_data.
+    METHODS on_data_changed FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
+    METHODS on_toolbar FOR EVENT toolbar OF cl_gui_alv_grid
+      IMPORTING e_object.
+ENDCLASS.
+
+" Has to come after the class it's typed as, can't sit up in Global Data.
+DATA go_alv_events TYPE REF TO lcl_alv_event_handler.
