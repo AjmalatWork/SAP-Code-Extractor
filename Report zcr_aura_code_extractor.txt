@@ -700,9 +700,8 @@ FORM process_single_object USING is_e071 TYPE e071
     PERFORM build_full_delta USING lt_code_new CHANGING lt_delta.
   ENDIF.
 
-  PERFORM has_delta_changes USING lt_delta CHANGING lv_has_changes.
+  PERFORM has_delta_changes USING lt_delta CHANGING lv_has_changes lv_note.
   IF lv_has_changes = abap_false.
-    lv_note = 'no changes in this version'.
     PERFORM append_object_note USING is_e071 lv_note.
     RETURN.
   ENDIF.
@@ -864,20 +863,46 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Same flags APPEND_DIFFERENTIAL_OUTPUT prints - anything else in
 *       the delta is an unchanged line carried along for context.
+*
+*       Regeneration stamps don't count. SEGW rewrites the "generated
+*       on" header comment and the LC_GEN_DATE_TIME constant every time
+*       a service is regenerated, so every method of the generated
+*       classes shows up as changed even when nothing was touched. An
+*       object whose only changed lines are those stamps is reported
+*       as unchanged, with a note saying why. A real edit to a
+*       generated class still comes through - which is worth seeing,
+*       since the next regeneration will wipe it.
 *&---------------------------------------------------------------------*
 FORM has_delta_changes USING it_delta TYPE tt_delta
-                       CHANGING cv_has_changes TYPE abap_bool.
-  DATA ls_delta TYPE ts_delta.
+                       CHANGING cv_has_changes TYPE abap_bool
+                                cv_note        TYPE string.
+  CONSTANTS: lc_stamp_comment  TYPE string VALUE 'THIS CLASS HAS BEEN GENERATED',
+             lc_stamp_constant TYPE string VALUE 'LC_GEN_DATE_TIME'.
 
-  CLEAR cv_has_changes.
+  DATA: ls_delta   TYPE ts_delta,
+        lv_line    TYPE string,
+        lv_stamped TYPE abap_bool.
+
+  CLEAR: cv_has_changes, lv_stamped.
+  cv_note = 'no changes in this version'.
 
   LOOP AT it_delta INTO ls_delta.
     CASE ls_delta-vrsflag(1).
       WHEN 'I' OR 'D' OR 'M' OR 'U'.
+        lv_line = ls_delta-line.
+        TRANSLATE lv_line TO UPPER CASE.
+        IF lv_line CS lc_stamp_comment OR lv_line CS lc_stamp_constant.
+          lv_stamped = abap_true.
+          CONTINUE.
+        ENDIF.
         cv_has_changes = abap_true.
         EXIT.
     ENDCASE.
   ENDLOOP.
+
+  IF cv_has_changes = abap_false AND lv_stamped = abap_true.
+    cv_note = 'only regeneration timestamps changed'.
+  ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
