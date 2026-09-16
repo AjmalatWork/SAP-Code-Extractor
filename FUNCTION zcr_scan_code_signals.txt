@@ -95,15 +95,20 @@ FUNCTION zcr_scan_code_signals.
         lv_tok4       TYPE string,
         lv_after_from TYPE string,
         lv_after_into TYPE string,
+        lv_next_tok   TYPE string,
+        lv_up_to      TYPE string,
         lv_from_pos   TYPE i,
-        lv_into_pos   TYPE i.
+        lv_into_pos   TYPE i,
+        lv_up_pos     TYPE i.
 
   DATA: lt_pending  TYPE STANDARD TABLE OF ty_pending WITH EMPTY KEY,
         ls_pending  TYPE ty_pending,
         lv_table    TYPE string,
         lv_chk_tab  TYPE string,
         lv_variant  TYPE string,
-        lv_fm_lit   TYPE string.
+        lv_fm_lit   TYPE string,
+        lv_rfc_kind TYPE string,
+        lv_wait_var TYPE string.
 
   DATA: lt_tabcache  TYPE STANDARD TABLE OF ty_tabcache WITH EMPTY KEY,
         ls_tabcache  TYPE ty_tabcache,
@@ -301,8 +306,10 @@ FUNCTION zcr_scan_code_signals.
       TRANSLATE lv_stmt TO UPPER CASE.
 
       CLEAR: lt_tokens, lv_tok1, lv_tok2, lv_tok3, lv_tok4,
-             lv_after_from, lv_after_into, lv_from_pos, lv_into_pos,
-             lt_pending, lv_table, lv_chk_tab, lv_variant, lv_fm_lit.
+             lv_after_from, lv_after_into, lv_next_tok, lv_up_to,
+             lv_from_pos, lv_into_pos, lv_up_pos,
+             lt_pending, lv_table, lv_chk_tab, lv_variant, lv_fm_lit,
+             lv_rfc_kind, lv_wait_var.
 
       " Padded with blanks so CS can match whole words, not substrings.
       lv_padded = | { lv_stmt } |.
@@ -323,6 +330,15 @@ FUNCTION zcr_scan_code_signals.
         IF lv_token = 'INTO' AND lv_into_pos = 0.
           lv_into_pos   = lv_idx.
           lv_after_into = VALUE #( lt_tokens[ lv_idx + 1 ] OPTIONAL ).
+        ENDIF.
+        " "UP TO <n> SECONDS" can trail any of the WAIT forms, not just
+        " the plain one, so the duration is picked up independently.
+        IF lv_token = 'UP' AND lv_up_pos = 0.
+          lv_next_tok = VALUE #( lt_tokens[ lv_idx + 1 ] OPTIONAL ).
+          IF lv_next_tok = 'TO'.
+            lv_up_pos = lv_idx.
+            lv_up_to  = VALUE #( lt_tokens[ lv_idx + 2 ] OPTIONAL ).
+          ENDIF.
         ENDIF.
       ENDLOOP.
 
@@ -413,9 +429,31 @@ FUNCTION zcr_scan_code_signals.
           ENDIF.
 
         WHEN 'WAIT'.
-          IF lv_tok2 = 'UP'.
-            APPEND VALUE #( type   = 'wait'
-                            detail = |WAIT UP TO { lv_tok4 } SECONDS| ) TO lt_pending.
+          " Every WAIT form rolls the work process out, so all of them
+          " are reported; the variant is what tells them apart.
+          CASE lv_tok2.
+            WHEN 'UP'.
+              lv_wait_var = 'WAIT'.
+            WHEN 'UNTIL'.
+              lv_wait_var = 'WAIT UNTIL'.
+            WHEN 'FOR'.
+              CASE lv_tok3.
+                WHEN 'ASYNCHRONOUS'.
+                  lv_wait_var = 'WAIT FOR ASYNCHRONOUS TASKS'.
+                WHEN 'MESSAGING'.
+                  lv_wait_var = 'WAIT FOR MESSAGING CHANNELS'.
+                WHEN 'PUSH'.
+                  lv_wait_var = 'WAIT FOR PUSH CHANNELS'.
+              ENDCASE.
+          ENDCASE.
+
+          IF lv_wait_var IS NOT INITIAL.
+            IF lv_up_to IS NOT INITIAL.
+              APPEND VALUE #( type   = 'wait'
+                              detail = |{ lv_wait_var } UP TO { lv_up_to } SECONDS| ) TO lt_pending.
+            ELSE.
+              APPEND VALUE #( type = 'wait' detail = lv_wait_var ) TO lt_pending.
+            ENDIF.
           ENDIF.
 
         WHEN 'CALL'.
@@ -423,9 +461,24 @@ FUNCTION zcr_scan_code_signals.
             lv_fm_lit = lv_tok3.
             REPLACE ALL OCCURRENCES OF '''' IN lv_fm_lit WITH ''.
 
-            IF lv_padded CS ' DESTINATION '.
+            " Which variant matters as much as the fact of the call: a
+            " synchronous one blocks here, tRFC/bgRFC defer to COMMIT
+            " WORK, and STARTING NEW TASK forks. A call can carry both
+            " DESTINATION and one of the others, so the more specific
+            " addition wins.
+            IF lv_padded CS ' STARTING NEW TASK '.
+              lv_rfc_kind = 'asynchronous RFC (STARTING NEW TASK)'.
+            ELSEIF lv_padded CS ' IN BACKGROUND TASK '.
+              lv_rfc_kind = 'transactional RFC (IN BACKGROUND TASK)'.
+            ELSEIF lv_padded CS ' IN BACKGROUND UNIT '.
+              lv_rfc_kind = 'background RFC (IN BACKGROUND UNIT)'.
+            ELSEIF lv_padded CS ' DESTINATION '.
+              lv_rfc_kind = 'synchronous RFC (DESTINATION)'.
+            ENDIF.
+
+            IF lv_rfc_kind IS NOT INITIAL.
               APPEND VALUE #( type   = 'rfc_call'
-                              detail = |CALL FUNCTION { lv_tok3 } DESTINATION| ) TO lt_pending.
+                              detail = |CALL FUNCTION { lv_tok3 } - { lv_rfc_kind }| ) TO lt_pending.
             ENDIF.
 
             " An RFC-enabled lock call is both, so these are independent
