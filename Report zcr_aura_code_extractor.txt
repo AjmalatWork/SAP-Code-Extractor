@@ -13,7 +13,102 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
   PERFORM f4_output_folder CHANGING p_file.
 
 *&---------------------------------------------------------------------*
-*& Main
+*& Program flow
+*&---------------------------------------------------------------------*
+*
+*  START-OF-SELECTION
+*  '-- MAIN
+*      |-- DETERMINE_EXTRACTION_METHOD       BLOCKS / DIFFERENTIAL / FULL
+*      '-- one of, by radio button:
+*          |-- RUN_MULTI_TR_FLOW                          (Transport)
+*          |   |-- VALIDATE_MULTI_TR_INPUT
+*          |   |-- RESOLVE_ENTERED_TRS                    E070
+*          |   '-- BUILD_MULTI_TR_OBJECT_LIST
+*          |       |-- COLLECT_TR_HITS  (per TR)          E070 / E071
+*          |       |-- EXPAND_CLASS_METHODS               SEOCOMPO + RTTI
+*          |       |-- BUILD_UNIQUE_MULTI_OBJECTS
+*          |       |   '-- BUILD_TR_LIST                  E070
+*          |       '-- ENRICH_MULTI_OBJECTS  ................... (a)
+*          |-- RUN_PROG_ALV_FLOW                          (Program)
+*          |   '-- BUILD_MULTI_PROG_OBJECT_LIST
+*          |       |-- BUILD_OBJECT_LIST_FROM_PROG  (per program)
+*          |       |   '-- ADD_PROGRAM_INCLUDES    FM RS_GET_ALL_INCLUDES
+*          |       |-- CONVERT_E071_TO_MULTI_OBJ
+*          |       '-- ENRICH_MULTI_OBJECTS  ................... (a)
+*          |-- RUN_CLASS_ALV_FLOW                         (Class)
+*          |   '-- BUILD_CLASS_OBJECT_LIST
+*          |       |-- BUILD_OBJECT_LIST_FROM_CLASS  (per class)
+*          |       |-- ADD_CLASS_METHODS                  SEOCOMPO + RTTI
+*          |       |-- CONVERT_E071_TO_MULTI_OBJ
+*          |       '-- ENRICH_MULTI_OBJECTS  ................... (a)
+*          '-- RUN_FUNC_ALV_FLOW                          (Function Module)
+*              '-- BUILD_MULTI_FUNC_OBJECT_LIST
+*                  |-- BUILD_OBJECT_LIST_FROM_FUNC  (per FM)
+*                  |-- CONVERT_E071_TO_MULTI_OBJ
+*                  '-- ENRICH_MULTI_OBJECTS  ................... (a)
+*
+*      every RUN_*_FLOW then continues:
+*          |-- DETERMINE_ALV_OUTPUT_PATH
+*          |   '-- BUILD_FULL_PATH
+*          |-- CALL SCREEN 9000  ................................ (b)
+*          '-- DOWNLOAD_OUTPUT_FILE
+*              |-- CONFIRM_OVERWRITE_IF_EXISTS    FM POPUP_TO_CONFIRM
+*              '-- FM GUI_DOWNLOAD
+*
+*  (a) ENRICH_MULTI_OBJECTS   version columns for the ALV, per row
+*      '-- GET_DEFAULT_VERSIONS
+*          |-- GET_VERSION_LIST         FM SVRS_GET_VERSION_DIRECTORY_46
+*          '-- FILTER_TOC_VERSIONS      E070
+*
+*  (b) SCREEN 9000   ALV review screen
+*      PBO  STATUS_9000
+*           '-- CREATE_MULTI_TR_ALV
+*               '-- BUILD_MULTI_TR_FIELDCAT
+*      ALV  LCL_ALV_EVENT_HANDLER
+*           |-- ON_F4              FM SVRS_GET_VERSION_DIRECTORY_46
+*           |                      FM F4IF_INT_TABLE_VALUE_REQUEST
+*           |-- ON_DATA_CHANGED
+*           '-- ON_TOOLBAR
+*      PAI  USER_COMMAND_9000
+*           |-- EXEC
+*           |   |-- VALIDATE_CHECKED_VERSIONS
+*           |   |   |-- VALIDATE_COMPARE_VERSION  (per checked row)
+*           |   |   |   |-- GET_VERSION_LIST
+*           |   |   |   '-- FILTER_TOC_VERSIONS
+*           |   |   '-- REFRESH_ALV_DISPLAY
+*           |   '-- PROCESS_CHECKED_MULTI_OBJECTS
+*           |       '-- PROCESS_SINGLE_OBJECT  (per checked row) ... (c)
+*           |-- SELALL / DESELALL
+*           |   '-- REFRESH_ALV_DISPLAY
+*           '-- BACK / EXIT / CANC     abandons the run, nothing written
+*
+*  (c) PROCESS_SINGLE_OBJECT   one object end to end
+*      |-- BUILD_DEPENDENCY_INPUT       CL_OO_CLASSNAME_SERVICE
+*      |                                FM FUNCTION_INCLUDE_INFO
+*      |-- GET_VERSION_LIST             FM SVRS_GET_VERSION_DIRECTORY_46
+*      |-- FILTER_TOC_VERSIONS  or  DETERMINE_COMPARISON_MODE
+*      |-- GET_SOURCE_CODE (current)    FM SVRS_GET_REPS_FROM_OBJECT
+*      |-- IS_GENERATED_BASE_CLASS      diff modes: note and stop
+*      |-- GET_SOURCE_CODE (compare) + COMPUTE_DELTA
+*      |        FM SVRS_COMPUTE_DELTA_REPS
+*      |   or BUILD_FULL_DELTA          FULL mode / single version
+*      |-- HAS_DELTA_CHANGES            no change: note and stop
+*      |-- FETCH_DEPENDENCY_JSON        FM ZCR_GET_DEPENDENCY_OBJ_NEW .. (d)
+*      |-- APPEND_OBJECT_HEADER
+*      '-- APPEND_DIFFERENTIAL_OUTPUT  or  APPEND_BLOCK_OUTPUT
+*          '-- BUILD_UNIFIED_CODE   (+ EXTRACT_CHANGED_BLOCKS in BLOCKS)
+*
+*  (d) FM ZCR_GET_DEPENDENCY_OBJ_NEW   per dependency of the object
+*      |-- FM REPOSITORY_ENVIRONMENT_RFC     cross-references
+*      |-- FM ZCR_GET_OBJECT_SIGNATURE       parameters / exceptions
+*      |-- FM ZCR_SCAN_CODE_SIGNALS          risky constructs, 2 levels
+*      |   '-- FM ZCR_GET_DEPENDENCY_OBJ_NEW (lightweight, for level 2)
+*      '-- FM Z_GET_DDIC_INFO                DDIC JSON
+*
+*  Selection-screen events, outside the flow above:
+*      AT SELECTION-SCREEN OUTPUT              SCREEN_MODIFY
+*      AT SELECTION-SCREEN ON VALUE-REQUEST    F4_OUTPUT_FOLDER
+*
 *&---------------------------------------------------------------------*
 START-OF-SELECTION.
   PERFORM main.
