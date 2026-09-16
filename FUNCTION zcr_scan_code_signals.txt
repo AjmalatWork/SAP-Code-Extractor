@@ -20,7 +20,8 @@ FUNCTION zcr_scan_code_signals.
 *
 * Scanning goes one hop further than the object itself: whatever that
 * object calls is scanned too and reported with LEVEL 2 and a VIA naming
-* the object it was reached through. GC_MAX_DEPTH bounds this.
+* the object it was reached through. GC_MAX_DEPTH bounds this, and only
+* custom (Z*/Y*) objects are followed that far.
 *
 * No signature resolution or DDIC export happens at the deeper level -
 * those belong to the objects actually offered for review, not to
@@ -122,9 +123,10 @@ FUNCTION zcr_scan_code_signals.
   DATA: lt_raw    TYPE zcr_tt_code_signal,
         ls_signal TYPE zcr_ts_code_signal.
 
-  DATA: lt_dep_in TYPE zpoc_tt_obj,
-        lt_next   TYPE zcr_tt_dep_ref,
-        ls_next   TYPE zcr_ts_dep_ref.
+  DATA: lt_dep_in   TYPE zpoc_tt_obj,
+        lt_next     TYPE zcr_tt_dep_ref,
+        ls_next     TYPE zcr_ts_dep_ref,
+        lv_ns_check TYPE string.
 
   CLEAR et_signals.
 
@@ -572,6 +574,18 @@ FUNCTION zcr_scan_code_signals.
       LOOP AT lt_next INTO ls_next.
         CHECK ls_next-enrich_type = 'PROG' OR ls_next-enrich_type = 'INCL'
            OR ls_next-enrich_type = 'FUNC' OR ls_next-enrich_type = 'METH'.
+
+        " Only custom code is worth following down to level 2. Framework
+        " objects a method happens to touch - Gateway's own error log,
+        " say - are accurate but not something a reviewer can act on, and
+        " they dominate the output by volume. For a method the namespace
+        " that counts is the owning class, not the method name.
+        IF ls_next-enrich_type = 'METH'.
+          lv_ns_check = ls_next-parent.
+        ELSE.
+          lv_ns_check = ls_next-lookup_name.
+        ENDIF.
+        CHECK lv_ns_check CP 'Z*' OR lv_ns_check CP 'Y*'.
 
         APPEND VALUE #( obj_type = ls_next-enrich_type
                         name     = ls_next-lookup_name
