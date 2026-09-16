@@ -555,8 +555,11 @@ FUNCTION zcr_scan_code_signals.
     "=============================
     IF ls_queue-depth < gc_max_depth.
 
+      " "=>" rather than "~" between the class and the method: an
+      " interface method's name already carries a tilde of its own, and
+      " CLASS~INTERFACE~METHOD reads like a string-building slip.
       IF ls_queue-obj_type = 'METH' OR ls_queue-obj_type = 'OM'.
-        lv_via = |{ ls_queue-parent }~{ ls_queue-name }|.
+        lv_via = |{ ls_queue-parent }=>{ ls_queue-name }|.
       ELSE.
         lv_via = ls_queue-name.
       ENDIF.
