@@ -597,8 +597,9 @@ ENDFORM.
 *       End-to-end handling of one object: version retrieval, delta
 *       computation, then - only if something actually changed - the
 *       dependency JSON, header and formatted output. An object with
-*       nothing to show gets a one-line note instead, and never pays
-*       for the dependency scan.
+*       nothing to show (no delta, only regeneration stamps, or a
+*       generated base class in a diff mode) gets a one-line note
+*       instead, and never pays for the dependency scan.
 *
 *       IV_COMPARE_VERSNO only matters for the ALV flows - when it's
 *       filled in it overrides the auto-detected "previous version"
@@ -621,6 +622,7 @@ FORM process_single_object USING is_e071 TYPE e071
         lt_delta            TYPE tt_delta,
         lv_only_one_version TYPE abap_bool,
         lv_has_changes      TYPE abap_bool,
+        lv_generated        TYPE abap_bool,
         lv_note             TYPE string,
         lv_skip             TYPE abap_bool.
 
@@ -670,6 +672,22 @@ FORM process_single_object USING is_e071 TYPE e071
   IF lv_skip = abap_true.
     PERFORM append_object_note USING is_e071 lv_note.
     RETURN.
+  ENDIF.
+
+  " The generated OData base classes (DPC/MPC without _EXT) are marked
+  " off-limits by SAP itself, and regenerating a service churns every
+  " method in them - reordered declarations, new dispatch branches. None
+  " of it is the developer's work; that lives in the _EXT subclasses and
+  " in the SEGW model. In the diff-oriented modes they get a note and
+  " nothing else. FULL mode still prints them, as the way to see
+  " everything regardless.
+  IF rb_full IS INITIAL.
+    PERFORM is_generated_base_class USING lt_code_new CHANGING lv_generated.
+    IF lv_generated = abap_true.
+      lv_note = 'generated base class, not reviewed'.
+      PERFORM append_object_note USING is_e071 lv_note.
+      RETURN.
+    ENDIF.
   ENDIF.
 
   IF lv_only_one_version = abap_false.
@@ -903,6 +921,33 @@ FORM has_delta_changes USING it_delta TYPE tt_delta
   IF cv_has_changes = abap_false AND lv_stamped = abap_true.
     cv_note = 'only regeneration timestamps changed'.
   ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  IS_GENERATED_BASE_CLASS
+*&---------------------------------------------------------------------*
+*       SEGW stamps every method of the generated DPC and MPC base
+*       classes with the same warning header. Matched on that text
+*       rather than on a _DPC/_MPC name suffix, so a renamed class, or
+*       another SAP generator using the same convention, is caught too.
+*&---------------------------------------------------------------------*
+FORM is_generated_base_class USING it_code TYPE tt_code_line
+                             CHANGING cv_generated TYPE abap_bool.
+  CONSTANTS lc_marker TYPE string VALUE 'NEVER MODIFY THIS CLASS'.
+
+  DATA: ls_code TYPE ts_code_line,
+        lv_line TYPE string.
+
+  CLEAR cv_generated.
+
+  LOOP AT it_code INTO ls_code.
+    lv_line = ls_code-line.
+    TRANSLATE lv_line TO UPPER CASE.
+    IF lv_line CS lc_marker.
+      cv_generated = abap_true.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
