@@ -362,8 +362,8 @@ FUNCTION z_get_ddic_info.
         ls_table-description = replace( val = ls_table-description sub = cl_abap_char_utilities=>newline with = ` ` occ = 0 ).
         ls_table-type        = <fs_dd02vv>-contflag.
 
-        " SM30 Check
-        SELECT SINGLE obj_name FROM tadir INTO @lw_dummy
+        " SM30 Check - existence only, the row itself isn't needed.
+        SELECT SINGLE obj_name FROM tadir INTO @DATA(lw_dummy) ##NEEDED
           WHERE pgmid = 'R3TR' AND object = 'FUGR' AND obj_name = @ls_table-name.
         IF sy-subrc = 0.
           ls_table-sm30 = abap_true.
