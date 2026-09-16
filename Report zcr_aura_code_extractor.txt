@@ -571,6 +571,11 @@ FORM process_single_object USING is_e071 TYPE e071
   PERFORM fetch_dependency_json.
   PERFORM append_object_header USING is_e071.
 
+  IF lv_only_one_version = abap_true.
+    APPEND VALUE #( line = |This is the first version of this object.| ) TO gt_output.
+    APPEND VALUE #( line = | | ) TO gt_output.
+  ENDIF.
+
   " The delta carries the old text for removed and modified lines
   " itself, so the renderers only need the new source alongside it.
   IF rb_diff IS NOT INITIAL OR rb_full IS NOT INITIAL.
@@ -897,8 +902,6 @@ FORM determine_comparison_mode CHANGING ct_version_list     TYPE tt_vrsd
   PERFORM filter_toc_versions CHANGING ct_version_list.
 
   IF lines( ct_version_list ) < 2.
-    APPEND VALUE #( line = |This is the first version of this object.| ) TO gt_output.
-    APPEND VALUE #( line = | | ) TO gt_output.
     cv_only_one_version = abap_true.
   ENDIF.
 
