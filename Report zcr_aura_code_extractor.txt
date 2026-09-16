@@ -728,7 +728,7 @@ FORM process_single_object USING is_e071 TYPE e071
   PERFORM append_object_header USING is_e071.
 
   IF rb_diff IS NOT INITIAL OR rb_full IS NOT INITIAL.
-    PERFORM append_differential_output USING lt_delta.
+    PERFORM append_differential_output USING lt_code_old lt_code_new lt_delta.
   ENDIF.
 
   IF rb_bloc IS NOT INITIAL.
@@ -1098,34 +1098,45 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 FORM build_full_delta USING it_code_new TYPE tt_code_line
                       CHANGING ct_delta TYPE tt_delta.
-  DATA lv_tabix TYPE i.
-
   CLEAR ct_delta.
 
+  " NUMBER follows the SVRS convention BUILD_UNIFIED_CODE relies on: the
+  " old line an insertion goes in front of. With no old version at all,
+  " every line is inserted in front of old line 1.
   LOOP AT it_code_new ASSIGNING FIELD-SYMBOL(<fs_code_new>).
-    lv_tabix = sy-tabix.
-    APPEND VALUE #( line = <fs_code_new>-line number = lv_tabix vrsflag = 'I' ) TO ct_delta.
+    APPEND VALUE #( line = <fs_code_new>-line number = 1 vrsflag = 'I' ) TO ct_delta.
   ENDLOOP.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *&      Form  APPEND_DIFFERENTIAL_OUTPUT
 *&---------------------------------------------------------------------*
-*       DIFFERENTIAL / FULL mode: one line per delta entry.
+*       DIFFERENTIAL / FULL mode: only the changed lines, no context.
+*       Built on the same unified stream as BLOCKS mode rather than
+*       straight off the delta - the delta's U rows hold the OLD text,
+*       so printing them directly showed a modified line as it used to
+*       be, not as it is now. Line numbers are positions in that stream,
+*       so they line up with what BLOCKS mode would show.
 *&---------------------------------------------------------------------*
-FORM append_differential_output USING it_delta TYPE tt_delta.
-  DATA ls_delta TYPE ts_delta.
+FORM append_differential_output USING it_code_old TYPE tt_code_line
+                                        it_code_new TYPE tt_code_line
+                                        it_delta    TYPE tt_delta.
+  DATA: lt_unified TYPE tt_unified,
+        ls_unified TYPE ts_unified,
+        lv_line_no TYPE i.
 
-  LOOP AT it_delta INTO ls_delta.
-    CASE ls_delta-vrsflag(1).
-      WHEN 'I'.                        "Insertion
-        APPEND VALUE #( line = |LINE { sy-tabix }: + { ls_delta-line }| ) TO gt_output.
-      WHEN 'D'.                        "Deletion
-        APPEND VALUE #( line = |LINE { sy-tabix }: - { ls_delta-line }| ) TO gt_output.
-      WHEN 'M' OR 'U'.                 "Modified
-        APPEND VALUE #( line = |LINE { sy-tabix }: ~ { ls_delta-line }| ) TO gt_output.
-      WHEN OTHERS.
-        CONTINUE.
+  PERFORM build_unified_code USING it_code_old it_code_new it_delta
+                              CHANGING lt_unified.
+
+  LOOP AT lt_unified INTO ls_unified.
+    lv_line_no = sy-tabix.
+    CASE ls_unified-flag.
+      WHEN 'I'.
+        APPEND VALUE #( line = |LINE { lv_line_no }: + { ls_unified-line }| ) TO gt_output.
+      WHEN 'D'.
+        APPEND VALUE #( line = |LINE { lv_line_no }: - { ls_unified-line }| ) TO gt_output.
+      WHEN '~'.
+        APPEND VALUE #( line = |LINE { lv_line_no }: ~ { ls_unified-line }| ) TO gt_output.
     ENDCASE.
   ENDLOOP.
 ENDFORM.
@@ -1150,6 +1161,17 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_UNIFIED_CODE
 *&---------------------------------------------------------------------*
+*       How SVRS_COMPUTE_DELTA_REPS numbers its delta, checked in the
+*       debugger against a real method: NUMBER is always a line number
+*       in the OLD version. For D and U it's the old line itself; for I
+*       it's the old line the insertion goes in front of, so a run of
+*       inserts at one spot all carry the same NUMBER. U rows carry the
+*       OLD text, so the current text of a modified line has to come
+*       from IT_CODE_NEW by position. The walk below keeps one pointer
+*       per version and treats NUMBER as old-side throughout - reading
+*       it as a new-side index dropped context lines and printed the
+*       old text under "~".
+*&---------------------------------------------------------------------*
 FORM build_unified_code USING it_code_old TYPE tt_code_line
                                it_code_new TYPE tt_code_line
                                it_delta    TYPE tt_delta
@@ -1163,44 +1185,41 @@ FORM build_unified_code USING it_code_old TYPE tt_code_line
   CLEAR ct_unified.
 
   LOOP AT it_delta INTO ls_delta.
+
+    " Unchanged lines up to the old line this entry is about. Old and
+    " new are in step here, so both pointers move together; the text is
+    " taken from the new source since that's what the file shows.
+    WHILE lv_idx_old < ls_delta-number AND lv_idx_new <= lines( it_code_new ).
+      READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
+      APPEND VALUE #( flag = ' ' line = ls_code_new-line ) TO ct_unified.
+      lv_idx_old = lv_idx_old + 1.
+      lv_idx_new = lv_idx_new + 1.
+    ENDWHILE.
+
     CASE ls_delta-vrsflag(1).
-      WHEN 'D'.                        " Deletion
-        WHILE lv_idx_old < ls_delta-number AND lv_idx_old <= lines( it_code_old ).
-          READ TABLE it_code_old INTO ls_code_old INDEX lv_idx_old.
-          APPEND VALUE #( flag = ' ' line = ls_code_old-line ) TO ct_unified.
-          lv_idx_old = lv_idx_old + 1.
-          lv_idx_new = lv_idx_new + 1.
-        ENDWHILE.
-
-        APPEND VALUE #( flag = 'D' line = ls_delta-line ) TO ct_unified.
-        lv_idx_old = lv_idx_old + 1.
-
-      WHEN 'I'.                        " Insertion
-        WHILE lv_idx_new < ls_delta-number AND lv_idx_new <= lines( it_code_new ).
-          READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
-          APPEND VALUE #( flag = ' ' line = ls_code_new-line ) TO ct_unified.
-          lv_idx_new = lv_idx_new + 1.
-          lv_idx_old = lv_idx_old + 1.
-        ENDWHILE.
-
+      WHEN 'I'.                        " Insertion - new side only
         APPEND VALUE #( flag = 'I' line = ls_delta-line ) TO ct_unified.
         lv_idx_new = lv_idx_new + 1.
 
-      WHEN 'M' OR 'U'.                 " Modified/Updated
-        WHILE lv_idx_new < ls_delta-number AND lv_idx_new <= lines( it_code_new ).
-          READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
-          APPEND VALUE #( flag = ' ' line = ls_code_new-line ) TO ct_unified.
-          lv_idx_new = lv_idx_new + 1.
-          lv_idx_old = lv_idx_old + 1.
-        ENDWHILE.
-
-        APPEND VALUE #( flag = '~' line = ls_delta-line ) TO ct_unified.
-        lv_idx_new = lv_idx_new + 1.
+      WHEN 'D'.                        " Deletion - old side only
+        APPEND VALUE #( flag = 'D' line = ls_delta-line ) TO ct_unified.
         lv_idx_old = lv_idx_old + 1.
+
+      WHEN 'M' OR 'U'.                 " One old line replaced by one new
+        " Show what it was as well as what it is now - a reviewer needs
+        " both to judge a modification, and the delta only carries the
+        " old text, so it costs nothing extra to keep it.
+        APPEND VALUE #( flag = 'D' line = ls_delta-line ) TO ct_unified.
+        READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
+        IF sy-subrc = 0.
+          APPEND VALUE #( flag = '~' line = ls_code_new-line ) TO ct_unified.
+        ENDIF.
+        lv_idx_old = lv_idx_old + 1.
+        lv_idx_new = lv_idx_new + 1.
     ENDCASE.
   ENDLOOP.
 
-  " Catch any remaining unchanged lines at the end of the file
+  " Whatever is left in the new source after the last delta entry
   WHILE lv_idx_new <= lines( it_code_new ).
     READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
     APPEND VALUE #( flag = ' ' line = ls_code_new-line ) TO ct_unified.
