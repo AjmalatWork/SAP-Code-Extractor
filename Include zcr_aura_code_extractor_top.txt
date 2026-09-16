@@ -104,9 +104,8 @@ DATA: gt_multi_obj       TYPE tt_multi_obj,
 *&---------------------------------------------------------------------*
 *& ALV event handler
 *&---------------------------------------------------------------------*
-*       Only here because CL_GUI_ALV_GRID's per-cell F4 (ONF4) needs an
-*       OO event handler - no FORM-based callback exists for it. Kept
-*       everything else in FORMs as usual.
+*       CL_GUI_ALV_GRID's events (ONF4, DATA_CHANGED, TOOLBAR) need an
+*       OO handler - there is no FORM-based callback for them.
 *&---------------------------------------------------------------------*
 CLASS lcl_alv_event_handler DEFINITION FINAL.
   PUBLIC SECTION.
@@ -118,5 +117,5 @@ CLASS lcl_alv_event_handler DEFINITION FINAL.
       IMPORTING e_object.
 ENDCLASS.
 
-" Has to come after the class it's typed as, can't sit up in Global Data.
+" Declared after the class it's typed as.
 DATA go_alv_events TYPE REF TO lcl_alv_event_handler.

@@ -9,9 +9,9 @@ FUNCTION zcr_get_object_signature.
 *"     REFERENCE(ES_SIGNATURE) TYPE  ZCR_TS_SIGNATURE
 *"----------------------------------------------------------------------
 * Returns a lightweight "API signature" summary for a single dependency,
-* used by ZCR_GET_DEPENDENCY_OBJ to enrich non-DDIC dependencies
-* (DDIC objects - DOMA/DTEL/TABL/TTYP - are handled separately by
-* Z_GET_DDIC_INFO and are NOT in scope here).
+* used by ZCR_GET_DEPENDENCY_OBJ_NEW to enrich non-DDIC dependencies.
+* DDIC objects (DOMA/DTEL/TABL/TTYP) are described by Z_GET_DDIC_INFO
+* and are out of scope here.
 *
 * IV_OBJ_TYPE:
 *   'PROG' / 'INCL' -> program_type / is_include / package
@@ -96,10 +96,9 @@ FUNCTION zcr_get_object_signature.
 
       IF sy-subrc = 0.
         LOOP AT lt_import ASSIGNING FIELD-SYMBOL(<fs_imp>).
-          " TYP is only populated for "TYPE <name>" parameters; parameters
-          " declared as "LIKE <dbfield>" leave TYP blank and carry the
-          " reference in DBFIELD instead - fall back to that so we don't
-          " silently lose the type for older-style LIKE parameters.
+          " TYP is only filled for "TYPE <name>" parameters; ones declared
+          " "LIKE <dbfield>" leave it blank and carry the reference in
+          " DBFIELD.
           APPEND VALUE #( name     = <fs_imp>-parameter
                            kind     = 'IMPORTING'
                            type     = COND #( WHEN <fs_imp>-typ IS NOT INITIAL

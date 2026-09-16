@@ -22,10 +22,8 @@ START-OF-SELECTION.
 *&      Form  MAIN
 *&---------------------------------------------------------------------*
 *       Orchestrates the whole extraction. All four modes go through
-*       the same ALV review screen (9000) now - object selection and
-*       compare-version override happen there, methods included.
-*       There's no separate "specific method" field on the selection
-*       screen any more.
+*       the ALV review screen (9000), where the objects to extract are
+*       picked and the compare version can be overridden per row.
 *&---------------------------------------------------------------------*
 FORM main.
   PERFORM determine_extraction_method.
@@ -114,11 +112,10 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  DETERMINE_ALV_OUTPUT_PATH
 *&---------------------------------------------------------------------*
-*       Shared by all four modes. One entry keeps the old naming
-*       (CODE_EXTRACT_<name>_<METHOD>.TXT); more than one switches to
-*       CODE_EXTRACT_MULTI_<label><n>_<METHOD>.TXT. TR mode passes 'TO'
-*       for IV_MULTI_LABEL, same as before Program/Class/Function got
-*       this screen too.
+*       Shared by all four modes. A single entry gives
+*       CODE_EXTRACT_<name>_<METHOD>.TXT; more than one gives
+*       CODE_EXTRACT_MULTI_<label><n>_<METHOD>.TXT, where IV_MULTI_LABEL
+*       is TO / PROG / CLAS / FUNC depending on the mode.
 *&---------------------------------------------------------------------*
 FORM determine_alv_output_path USING iv_single_name TYPE string
                                       iv_count       TYPE i
@@ -212,9 +209,8 @@ ENDFORM.
 *&      Form  BUILD_OBJECT_LIST_FROM_CLASS
 *&---------------------------------------------------------------------*
 *       Adds a class's definition/public/protected/private section
-*       includes. Methods aren't picked here any more - ADD_CLASS_METHODS
-*       adds every method of every class in GR_CLASS_NAME, and the user
-*       checks/unchecks individual ones in the ALV.
+*       includes. Its methods are added separately by ADD_CLASS_METHODS
+*       and picked individually in the ALV.
 *       Skips a nonexistent class with a message instead of aborting the
 *       whole run, same as the Program builder.
 *&---------------------------------------------------------------------*
@@ -265,11 +261,10 @@ ENDFORM.
 *       For every CLAS entry already in the object list, pulls in all
 *       of its methods as separate GT_E071 rows so the ALV can offer
 *       them individually.
-*       SEOCOMPO alone isn't enough - it only has methods the class
-*       declares itself. A method that's just a redefinition (e.g. the
-*       DEFINE/EXECUTE_ACTION overrides you get in an OData _EXT class)
-*       has no SEOCOMPO row of its own, so those get picked up via RTTI's
-*       IS_REDEFINED flag instead.
+*       SEOCOMPO only lists methods the class declares itself. A pure
+*       redefinition (the DEFINE/EXECUTE_ACTION overrides in an OData
+*       _EXT class, say) has no SEOCOMPO row, so those come from RTTI's
+*       IS_REDEFINED flag.
 *&---------------------------------------------------------------------*
 FORM add_class_methods.
   DATA: lo_typedescr  TYPE REF TO cl_abap_typedescr,
@@ -357,12 +352,11 @@ ENDFORM.
 *       generated base class in a diff mode) gets a one-line note
 *       instead, and never pays for the dependency scan.
 *
-*       IV_COMPARE_VERSNO only matters for the ALV flows - when it's
-*       filled in it overrides the auto-detected "previous version"
-*       with whatever the user picked. Left it as a required param
-*       instead of OPTIONAL, since some ABAP versions parse OPTIONAL
-*       after "TYPE <field>" as a 3rd formal parameter instead of a
-*       keyword - callers just pass it blank when there's no override.
+*       IV_COMPARE_VERSNO, when filled, overrides the auto-detected
+*       previous version with the one picked in the ALV. It's a
+*       required parameter: OPTIONAL after "TYPE <field>" is parsed as
+*       a further formal parameter on this release, so callers pass it
+*       blank when there's no override.
 *&---------------------------------------------------------------------*
 FORM process_single_object USING is_e071 TYPE e071
                                   iv_compare_versno TYPE vrsd-versno.
@@ -431,12 +425,11 @@ FORM process_single_object USING is_e071 TYPE e071
   ENDIF.
 
   " The generated OData base classes (DPC/MPC without _EXT) are marked
-  " off-limits by SAP itself, and regenerating a service churns every
-  " method in them - reordered declarations, new dispatch branches. None
-  " of it is the developer's work; that lives in the _EXT subclasses and
-  " in the SEGW model. In the diff-oriented modes they get a note and
-  " nothing else. FULL mode still prints them, as the way to see
-  " everything regardless.
+  " off-limits by SAP, and regenerating a service rewrites every method
+  " in them - reordered declarations, new dispatch branches. None of it
+  " is the developer's work; that lives in the _EXT subclasses and the
+  " SEGW model. In the diff modes they get a note and nothing else;
+  " FULL mode prints them anyway.
   IF rb_full IS INITIAL.
     PERFORM is_generated_base_class USING lt_code_new CHANGING lv_generated.
     IF lv_generated = abap_true.
@@ -658,8 +651,7 @@ ENDFORM.
 *       classes shows up as changed even when nothing was touched. An
 *       object whose only changed lines are those stamps is reported
 *       as unchanged, with a note saying why. A real edit to a
-*       generated class still comes through - which is worth seeing,
-*       since the next regeneration will wipe it.
+*       generated class still counts.
 *&---------------------------------------------------------------------*
 FORM has_delta_changes USING it_delta TYPE tt_delta
                        CHANGING cv_has_changes TYPE abap_bool
@@ -702,9 +694,8 @@ ENDFORM.
 *&      Form  IS_GENERATED_BASE_CLASS
 *&---------------------------------------------------------------------*
 *       SEGW stamps every method of the generated DPC and MPC base
-*       classes with the same warning header. Matched on that text
-*       rather than on a _DPC/_MPC name suffix, so a renamed class, or
-*       another SAP generator using the same convention, is caught too.
+*       classes with the same warning header. Matching on that text
+*       doesn't depend on the _DPC/_MPC naming.
 *&---------------------------------------------------------------------*
 FORM is_generated_base_class USING it_code TYPE tt_code_line
                              CHANGING cv_generated TYPE abap_bool.
@@ -715,8 +706,8 @@ FORM is_generated_base_class USING it_code TYPE tt_code_line
 
   CLEAR cv_generated.
 
-  " The banner sits near the top of every generated method, but scanning
-  " the whole include is cheap and avoids assuming where it is.
+  " The banner sits near the top of every generated method; scanning the
+  " whole include is cheap and doesn't assume where it is.
   LOOP AT it_code INTO ls_code.
     lv_line = ls_code-line.
     TRANSLATE lv_line TO UPPER CASE.
@@ -757,10 +748,10 @@ ENDFORM.
 *&      Form  FILTER_TOC_VERSIONS
 *&---------------------------------------------------------------------*
 *       Drops transport-of-copies (TOC) versions and ones with no
-*       request number. Order is 000 (active), 003 (previous), 002, 001.
-*       Normally you'd diff 000 against 003, but 000's request number
-*       can come back empty just like 003's - so those get filtered out
-*       here and we fall back to comparing 003 against 002 instead.
+*       request number. The list is newest-first (000 active, then
+*       003, 002, 001); dropping the unusable entries means the
+*       "previous version" pick further on lands on a real transported
+*       version.
 *&---------------------------------------------------------------------*
 FORM filter_toc_versions CHANGING ct_version_list TYPE tt_vrsd.
   DATA: lt_trkorr TYPE TABLE OF e070-trkorr,
@@ -780,8 +771,8 @@ FORM filter_toc_versions CHANGING ct_version_list TYPE tt_vrsd.
    WHERE trkorr = @lt_trkorr-table_line
    ORDER BY PRIMARY KEY.
 
-  " Nothing found means every version's request is unknown - the loop
-  " below then clears them all, which is the intended outcome.
+  " Nothing found: every version's request is unknown and the loop
+  " below clears them all.
   IF sy-subrc <> 0.
     CLEAR lt_e070.
   ENDIF.
@@ -899,11 +890,10 @@ ENDFORM.
 *&      Form  APPEND_DIFFERENTIAL_OUTPUT
 *&---------------------------------------------------------------------*
 *       DIFFERENTIAL / FULL mode: only the changed lines, no context.
-*       Built on the same unified stream as BLOCKS mode rather than
-*       straight off the delta - the delta's U rows hold the OLD text,
-*       so printing them directly showed a modified line as it used to
-*       be, not as it is now. Line numbers are positions in that stream,
-*       so they line up with what BLOCKS mode would show.
+*       Built on the same unified stream as BLOCKS mode: the delta's U
+*       rows carry the old text, and the current text of a modified
+*       line has to come from the new source. Line numbers are positions
+*       in that stream, so they match what BLOCKS mode shows.
 *&---------------------------------------------------------------------*
 FORM append_differential_output USING it_code_new TYPE tt_code_line
                                         it_delta    TYPE tt_delta.
@@ -947,19 +937,16 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  BUILD_UNIFIED_CODE
 *&---------------------------------------------------------------------*
-*       How SVRS_COMPUTE_DELTA_REPS numbers its delta, checked in the
-*       debugger against a real method: NUMBER is always a line number
-*       in the OLD version. For D and U it's the old line itself; for I
-*       it's the old line the insertion goes in front of, so a run of
-*       inserts at one spot all carry the same NUMBER. U rows carry the
-*       OLD text, so the current text of a modified line has to come
-*       from IT_CODE_NEW by position. The walk below keeps one pointer
-*       per version and treats NUMBER as old-side throughout - reading
-*       it as a new-side index dropped context lines and printed the
-*       old text as if it were the change.
+*       SVRS_COMPUTE_DELTA_REPS numbers every delta row by the OLD
+*       version: for D and U it's the old line itself, for I it's the
+*       old line the insertion goes in front of (a run of inserts at
+*       one spot all carry the same NUMBER). U rows carry the OLD text,
+*       so the current text of a modified line comes from IT_CODE_NEW
+*       by position. The walk keeps one pointer per version and reads
+*       NUMBER as old-side throughout.
 *
-*       The stream uses three flags only: ' ' unchanged, 'D' removed,
-*       'I' added - plain unified-diff convention, nothing to explain.
+*       The stream uses three flags: ' ' unchanged, 'D' removed,
+*       'I' added - plain unified-diff convention.
 *&---------------------------------------------------------------------*
 FORM build_unified_code USING it_code_new TYPE tt_code_line
                                it_delta    TYPE tt_delta
@@ -995,12 +982,9 @@ FORM build_unified_code USING it_code_new TYPE tt_code_line
         lv_idx_old = lv_idx_old + 1.
 
       WHEN 'M' OR 'U'.                 " One old line replaced by one new
-        " Rendered as a deletion followed by an insertion, same as the
-        " D/I pairs SVRS emits when it can't line the two versions up
-        " 1:1. Whether an edit arrives as U or as D+I is down to how
-        " the delta algorithm happened to align things, not to anything
-        " about the edit itself, so giving it its own marker only made
-        " the same kind of change look different from place to place.
+        " Rendered as a deletion then an insertion - the same shape SVRS
+        " itself emits when it can't pair the two versions 1:1, so a
+        " modified line looks the same either way.
         APPEND VALUE #( flag = 'D' line = ls_delta-line ) TO ct_unified.
         READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
         IF sy-subrc = 0.
@@ -1048,9 +1032,8 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
 
   LOOP AT it_unified INTO ls_unified.
 
-    " Grab SY-TABIX first thing - the block-header APPEND further down
-    " (into LT_BLOCK_BUFFER) resets it, and that used to corrupt the
-    " "LINE n" label on the first line of every block.
+    " SY-TABIX is taken first - the block-header APPEND into
+    " LT_BLOCK_BUFFER further down resets it.
     lv_line_no = sy-tabix.
 
     lv_text = ls_unified-line.
@@ -1586,10 +1569,9 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  COLLECT_TR_HITS
 *&---------------------------------------------------------------------*
-*       Same object-list logic as the original single-TR flow (same
-*       type filter, same subtask expansion, same dedup), just tagging
-*       every resulting object with which entered TR it came from and
-*       appending into the shared hits table instead of GT_E071.
+*       Collects one TR's objects - read off its subtasks, filtered to
+*       the supported object types - into the shared hits table, each
+*       tagged with the TR it came from.
 *&---------------------------------------------------------------------*
 FORM collect_tr_hits USING iv_trkorr TYPE e070-trkorr
                      CHANGING ct_hits TYPE tt_tr_hit.
@@ -1651,9 +1633,7 @@ FORM build_unique_multi_objects USING it_hits TYPE tt_tr_hit.
   DELETE ADJACENT DUPLICATES FROM lt_unique COMPARING object obj_name.
 
   " A class itself holds no source - its sections and methods do, and
-  " EXPAND_CLASS_METHODS has already added those as their own rows. The
-  " Class-mode builder drops the bare CLAS row for the same reason;
-  " this one was just missing the filter.
+  " EXPAND_CLASS_METHODS has already added those as rows of their own.
   DELETE lt_unique WHERE object = 'CLAS'.
 
   LOOP AT lt_unique INTO DATA(ls_unique).
@@ -1744,11 +1724,9 @@ FORM enrich_multi_objects.
       lv_object_type = 'REPS'.
     ENDIF.
 
-    " E071-OBJ_NAME (CHAR120) and VRSD-OBJNAME (CHAR110, GET_DEFAULT_
-    " VERSIONS' formal parameter type) are different lengths - route
-    " through this temp variable, typed to match the formal parameter
-    " exactly, rather than passing <fs_multi>-obj_name directly (which
-    " PERFORM/FORM rejects as incompatible).
+    " E071-OBJ_NAME is CHAR120, the formal parameter is VRSD-OBJNAME
+    " (CHAR110) - PERFORM rejects the direct pass, so it goes through a
+    " variable of the right type.
     lv_obj_name = <fs_multi>-obj_name.
 
     PERFORM get_default_versions USING lv_obj_name lv_object_type
@@ -1775,9 +1753,9 @@ ENDFORM.
 *       Same TOC-filtering and latest/previous-version logic as
 *       DETERMINE_COMPARISON_MODE, just for pre-filling the ALV - so it
 *       doesn't touch GT_OUTPUT at all.
-*       EV_CMP_VERSNO comes back blank when there's nothing to compare
-*       (single version, or FULL mode) - PROCESS_SINGLE_OBJECT already
-*       treats a blank override as "auto-detect", so that's fine.
+*       EV_CMP_VERSNO stays blank when there's nothing to compare
+*       (single version, or FULL mode); PROCESS_SINGLE_OBJECT treats a
+*       blank override as auto-detect.
 *&---------------------------------------------------------------------*
 FORM get_default_versions USING iv_objname     TYPE vrsd-objname
                                  iv_object_type TYPE e071-object
@@ -2036,8 +2014,8 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *       Screen 9000 itself (a Custom Control named 'ALV_CONTAINER') and
 *       GUI status 'STATUS_9000' (function codes EXEC/BACK/EXIT/CANC/
-*       SELALL/DESELALL) must be created manually in SE51/SE41 - see
-*       delivery notes. Flow logic needed on screen 9000:
+*       SELALL/DESELALL) are maintained in SE51/SE41. Flow logic on
+*       screen 9000:
 *         PBO: MODULE status_9000.
 *         PAI: MODULE user_command_9000.
 *&---------------------------------------------------------------------*
@@ -2121,8 +2099,8 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
       lv_object_type = 'REPS'.
     ENDIF.
 
-    " E071-OBJ_NAME (CHAR120) vs VRSD-OBJNAME (CHAR110) - same mismatch
-    " as ENRICH_MULTI_OBJECTS, fixed the same way.
+    " E071-OBJ_NAME is CHAR120 and the FM wants VRSD-OBJNAME (CHAR110),
+    " so it goes through a variable of that type.
     lv_obj_name = <fs_row>-obj_name.
 
     " F4 intentionally shows ALL versions of this object in the version
@@ -2198,8 +2176,8 @@ CLASS lcl_alv_event_handler IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD on_toolbar.
-    " Keep-list: strip everything except Sort Asc/Desc and Find.
-    " DELETE with no INDEX inside a plain LOOP is fine, ABAP handles it.
+    " Keep-list: everything except Sort Asc/Desc and Find is removed.
+    " DELETE without INDEX inside the LOOP drops the current row.
     DATA ls_toolbar TYPE stb_button.
 
     LOOP AT e_object->mt_toolbar INTO ls_toolbar.

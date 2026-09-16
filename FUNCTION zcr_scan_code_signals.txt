@@ -491,8 +491,8 @@ FUNCTION zcr_scan_code_signals.
                               detail = |CALL FUNCTION { lv_tok3 } - { lv_rfc_kind }| ) TO lt_pending ##NO_TEXT.
             ENDIF.
 
-            " An RFC-enabled lock call is both, so these are independent
-            " of the DESTINATION check above rather than an ELSE branch.
+            " An RFC-enabled lock call is both, so this is independent of
+            " the DESTINATION check above.
             IF lv_fm_lit CP 'ENQUEUE_*'.
               APPEND VALUE #( type   = 'enqueue'
                               detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending ##NO_TEXT.
@@ -562,9 +562,8 @@ FUNCTION zcr_scan_code_signals.
     "=============================
     IF ls_queue-depth < gc_max_depth.
 
-      " "=>" rather than "~" between the class and the method: an
-      " interface method's name already carries a tilde of its own, and
-      " CLASS~INTERFACE~METHOD reads like a string-building slip.
+      " "=>" between class and method; an interface method's name
+      " already carries its own tilde (INTF~METHOD).
       IF ls_queue-obj_type = 'METH' OR ls_queue-obj_type = 'OM'.
         lv_via = |{ ls_queue-parent }=>{ ls_queue-name }|.
       ELSE.
@@ -585,11 +584,10 @@ FUNCTION zcr_scan_code_signals.
         CHECK ls_next-enrich_type = 'PROG' OR ls_next-enrich_type = 'INCL'
            OR ls_next-enrich_type = 'FUNC' OR ls_next-enrich_type = 'METH'.
 
-        " Only custom code is worth following down to level 2. Framework
-        " objects a method happens to touch - Gateway's own error log,
-        " say - are accurate but not something a reviewer can act on, and
-        " they dominate the output by volume. For a method the namespace
-        " that counts is the owning class, not the method name.
+        " Level 2 follows custom (Z*/Y*) code only. Framework objects a
+        " method touches - Gateway's own error log, say - aren't
+        " something a reviewer can act on, and they'd dominate the
+        " output. For a method the namespace is the owning class's.
         IF ls_next-enrich_type = 'METH'.
           lv_ns_check = ls_next-parent.
         ELSE.
