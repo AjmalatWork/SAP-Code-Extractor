@@ -594,10 +594,11 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  PROCESS_SINGLE_OBJECT
 *&---------------------------------------------------------------------*
-*       End-to-end handling of one object: dependency JSON, header,
-*       version retrieval, delta computation, output formatting.
-*       Any CHECK failure below just skips the object, same as the
-*       old CONTINUE-based behaviour.
+*       End-to-end handling of one object: version retrieval, delta
+*       computation, then - only if something actually changed - the
+*       dependency JSON, header and formatted output. An object with
+*       nothing to show gets a one-line note instead, and never pays
+*       for the dependency scan.
 *
 *       IV_COMPARE_VERSNO only matters for the ALV flows - when it's
 *       filled in it overrides the auto-detected "previous version"
@@ -619,16 +620,23 @@ FORM process_single_object USING is_e071 TYPE e071
         lt_trdir_old        TYPE tt_trdir,
         lt_delta            TYPE tt_delta,
         lv_only_one_version TYPE abap_bool,
+        lv_has_changes      TYPE abap_bool,
+        lv_note             TYPE string,
         lv_skip             TYPE abap_bool.
 
   lv_objname     = is_e071-obj_name.
   lv_object_type = is_e071-object.
+  lv_note        = 'source or version information not available'.
 
+  " Nothing is written until the delta is known: an object with no
+  " changes gets a one-line note instead of a header, and its dependency
+  " and DDIC metadata - which would only describe code that never makes
+  " it into the file - is never fetched at all.
   PERFORM build_dependency_input USING is_e071 CHANGING lv_skip.
-  CHECK lv_skip = abap_false.
-
-  PERFORM fetch_dependency_json.
-  PERFORM append_object_header USING is_e071.
+  IF lv_skip = abap_true.
+    PERFORM append_object_note USING is_e071 lv_note.
+    RETURN.
+  ENDIF.
 
   IF lv_object_type = 'PROG'.
     lv_object_type = 'REPS'.
@@ -636,7 +644,10 @@ FORM process_single_object USING is_e071 TYPE e071
 
   PERFORM get_version_list USING lv_objname lv_object_type
                             CHANGING lt_version_list lv_skip.
-  CHECK lv_skip = abap_false.
+  IF lv_skip = abap_true.
+    PERFORM append_object_note USING is_e071 lv_note.
+    RETURN.
+  ENDIF.
 
   IF iv_compare_versno IS NOT INITIAL.
     " User picked an explicit baseline in the ALV - skip the normal
@@ -649,30 +660,55 @@ FORM process_single_object USING is_e071 TYPE e071
   ENDIF.
 
   READ TABLE lt_version_list INTO ls_latest_ver INDEX 1.
-  CHECK sy-subrc = 0.
+  IF sy-subrc <> 0.
+    PERFORM append_object_note USING is_e071 lv_note.
+    RETURN.
+  ENDIF.
 
   PERFORM get_source_code USING lv_objname lv_object_type ls_latest_ver-versno
                            CHANGING lt_code_new lt_trdir_new lv_skip.
-  CHECK lv_skip = abap_false.
+  IF lv_skip = abap_true.
+    PERFORM append_object_note USING is_e071 lv_note.
+    RETURN.
+  ENDIF.
 
   IF lv_only_one_version = abap_false.
     IF iv_compare_versno IS NOT INITIAL.
       ls_prev_ver-versno = iv_compare_versno.
     ELSE.
       READ TABLE lt_version_list INTO ls_prev_ver INDEX 2.
-      CHECK sy-subrc = 0.
+      IF sy-subrc <> 0.
+        PERFORM append_object_note USING is_e071 lv_note.
+        RETURN.
+      ENDIF.
     ENDIF.
 
     PERFORM get_source_code USING lv_objname lv_object_type ls_prev_ver-versno
                              CHANGING lt_code_old lt_trdir_old lv_skip.
-    CHECK lv_skip = abap_false.
+    IF lv_skip = abap_true.
+      PERFORM append_object_note USING is_e071 lv_note.
+      RETURN.
+    ENDIF.
 
     PERFORM compute_delta USING lt_code_old lt_code_new lt_trdir_old lt_trdir_new
                            CHANGING lt_delta lv_skip.
-    CHECK lv_skip = abap_false.
+    IF lv_skip = abap_true.
+      PERFORM append_object_note USING is_e071 lv_note.
+      RETURN.
+    ENDIF.
   ELSE.
     PERFORM build_full_delta USING lt_code_new CHANGING lt_delta.
   ENDIF.
+
+  PERFORM has_delta_changes USING lt_delta CHANGING lv_has_changes.
+  IF lv_has_changes = abap_false.
+    lv_note = 'no changes in this version'.
+    PERFORM append_object_note USING is_e071 lv_note.
+    RETURN.
+  ENDIF.
+
+  PERFORM fetch_dependency_json.
+  PERFORM append_object_header USING is_e071.
 
   IF rb_diff IS NOT INITIAL OR rb_full IS NOT INITIAL.
     PERFORM append_differential_output USING lt_delta.
@@ -805,6 +841,43 @@ FORM append_object_header USING is_e071 TYPE e071.
   ENDIF.
 
   CLEAR: gv_dep_json, gv_ddic_json.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  APPEND_OBJECT_NOTE
+*&---------------------------------------------------------------------*
+*       Stands in for the full header when an object has nothing to
+*       show. Every object the user selected still appears, so none of
+*       them look silently dropped, but without the dependency and DDIC
+*       payload that would describe code the file doesn't contain.
+*&---------------------------------------------------------------------*
+FORM append_object_note USING is_e071 TYPE e071
+                               iv_note TYPE string.
+  APPEND VALUE #( line = |=========================================| ) TO gt_output.
+  APPEND VALUE #( line = |Object: { is_e071-obj_name } { is_e071-object } - { iv_note }| ) TO gt_output.
+
+  CLEAR: gv_dep_json, gv_ddic_json.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  HAS_DELTA_CHANGES
+*&---------------------------------------------------------------------*
+*       Same flags APPEND_DIFFERENTIAL_OUTPUT prints - anything else in
+*       the delta is an unchanged line carried along for context.
+*&---------------------------------------------------------------------*
+FORM has_delta_changes USING it_delta TYPE tt_delta
+                       CHANGING cv_has_changes TYPE abap_bool.
+  DATA ls_delta TYPE ts_delta.
+
+  CLEAR cv_has_changes.
+
+  LOOP AT it_delta INTO ls_delta.
+    CASE ls_delta-vrsflag(1).
+      WHEN 'I' OR 'D' OR 'M' OR 'U'.
+        cv_has_changes = abap_true.
+        EXIT.
+    ENDCASE.
+  ENDLOOP.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1638,6 +1711,12 @@ FORM build_unique_multi_objects USING it_hits TYPE tt_tr_hit.
   lt_unique = it_hits.
   SORT lt_unique BY object obj_name.
   DELETE ADJACENT DUPLICATES FROM lt_unique COMPARING object obj_name.
+
+  " A class itself holds no source - its sections and methods do, and
+  " EXPAND_CLASS_METHODS has already added those as their own rows. The
+  " Class-mode builder drops the bare CLAS row for the same reason;
+  " this one was just missing the filter.
+  DELETE lt_unique WHERE object = 'CLAS'.
 
   LOOP AT lt_unique INTO DATA(ls_unique).
     CLEAR ls_multi.
