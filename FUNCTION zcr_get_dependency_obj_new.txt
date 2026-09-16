@@ -8,6 +8,8 @@ FUNCTION zcr_get_dependency_obj_new.
 *"     REFERENCE(EV_JSON) TYPE  STRING
 *"     REFERENCE(EV_DDIC_JSON) TYPE  STRING
 *"     REFERENCE(ET_DEPENDENCIES) TYPE  ZCR_TT_DEP_REF
+*"  CHANGING
+*"     REFERENCE(CT_DDIC_DONE) TYPE  ZPOC_TT_DDIC_OBJ OPTIONAL
 *"----------------------------------------------------------------------
 * IV_LIGHTWEIGHT reduces this to plain callee discovery: the CASE below
 * still runs, but there's no signature lookup, no code-signal scan and
@@ -17,6 +19,10 @@ FUNCTION zcr_get_dependency_obj_new.
 *
 * ET_DEPENDENCIES returns the candidates as structured rows, for callers
 * that need them as data rather than JSON.
+*
+* CT_DDIC_DONE lets a caller running several objects in a row have each
+* DDIC object described only once: pass the same table on every call
+* and it accumulates what has been covered.
 *
 * FORMs can't be nested inside FUNCTION/ENDFUNCTION, so this is one
 * block. Each object-type branch only collects raw candidates into
@@ -385,6 +391,12 @@ FUNCTION zcr_get_dependency_obj_new.
     "=============================
     LOOP AT lt_candidates INTO DATA(ls_candidate).
 
+      " The cross-reference includes the object itself (a method include
+      " lists its own include, a class lists itself) - not a dependency.
+      IF ls_candidate-name = ls_input-object_name.
+        CONTINUE.
+      ENDIF.
+
       CLEAR ls_dep.
       ls_dep-type = ls_candidate-type.
       ls_dep-name = ls_candidate-name.
@@ -459,12 +471,31 @@ FUNCTION zcr_get_dependency_obj_new.
   ENDIF.
 
   IF li_ddic_obj_list IS NOT INITIAL AND iv_lightweight = abap_false.
-    " DDIC objects go out as their own JSON in EV_DDIC_JSON.
-    CALL FUNCTION 'Z_GET_DDIC_INFO'
-      EXPORTING
-        ii_objects = li_ddic_obj_list
-      IMPORTING
-        ew_json    = ev_ddic_json.
+    " A DDIC object is described once per run. CT_DDIC_DONE carries what
+    " earlier calls already covered and gets this call's additions, so
+    " a table used by twenty methods is only spelled out under the first.
+    SORT li_ddic_obj_list BY obj_type object_name.
+    DELETE ADJACENT DUPLICATES FROM li_ddic_obj_list COMPARING obj_type object_name.
+
+    LOOP AT li_ddic_obj_list ASSIGNING FIELD-SYMBOL(<fs_ddic>).
+      READ TABLE ct_ddic_done TRANSPORTING NO FIELDS
+        WITH KEY obj_type = <fs_ddic>-obj_type object_name = <fs_ddic>-object_name.
+      IF sy-subrc = 0.
+        CLEAR <fs_ddic>-object_name.
+      ENDIF.
+    ENDLOOP.
+    DELETE li_ddic_obj_list WHERE object_name IS INITIAL.
+
+    IF li_ddic_obj_list IS NOT INITIAL.
+      " DDIC objects go out as their own JSON in EV_DDIC_JSON.
+      CALL FUNCTION 'Z_GET_DDIC_INFO'
+        EXPORTING
+          ii_objects = li_ddic_obj_list
+        IMPORTING
+          ew_json    = ev_ddic_json.
+
+      APPEND LINES OF li_ddic_obj_list TO ct_ddic_done.
+    ENDIF.
   ENDIF.
 
 ENDFUNCTION.

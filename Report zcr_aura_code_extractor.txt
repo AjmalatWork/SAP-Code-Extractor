@@ -123,6 +123,10 @@ START-OF-SELECTION.
 FORM main.
   PERFORM determine_extraction_method.
 
+  " Which DDIC objects have been described so far in this run - each
+  " one goes into the file once, under the first object that uses it.
+  CLEAR gt_ddic_done.
+
   IF rb_tr = 'X'.
     PERFORM run_multi_tr_flow.
   ELSEIF rb_prog = 'X'.
@@ -698,7 +702,9 @@ FORM fetch_dependency_json.
       ii_objects   = gt_dep
     IMPORTING
       ev_json      = gv_dep_json
-      ev_ddic_json = gv_ddic_json.
+      ev_ddic_json = gv_ddic_json
+    CHANGING
+      ct_ddic_done = gt_ddic_done.
 
   CLEAR gt_dep.
 ENDFORM.

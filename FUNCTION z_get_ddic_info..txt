@@ -473,9 +473,11 @@ FUNCTION z_get_ddic_info.
   " ======================================================================
   " 5. JSON SERIALIZATION
   " ======================================================================
+  " Initial fields are dropped: a non-key field carries no KEY, a table
+  " with no indexes carries no INDEXES, an empty object kind is absent.
   ew_json = /ui2/cl_json=>serialize(
-    data = ls_json_root
-  ).
+    data     = ls_json_root
+    compress = abap_true ).
 
 *  cl_demo_output=>display( ew_json ).
 
