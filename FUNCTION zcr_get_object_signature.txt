@@ -195,6 +195,8 @@ FUNCTION zcr_get_object_signature.
             es_signature-visibility = 'PROTECTED'.
           WHEN cl_abap_classdescr=>private.
             es_signature-visibility = 'PRIVATE'.
+          WHEN OTHERS.
+            " RTTI only knows those three - left blank if it ever differs.
         ENDCASE.
         es_signature-is_static = ls_method-is_class.
       ENDIF.
@@ -230,6 +232,9 @@ FUNCTION zcr_get_object_signature.
       ENDLOOP.
 
       APPEND LINES OF ls_method-exceptions TO es_signature-exceptions.
+
+    WHEN OTHERS.
+      " DDIC types and anything else have no signature to describe.
 
   ENDCASE.
 

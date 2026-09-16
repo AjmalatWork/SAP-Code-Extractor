@@ -97,7 +97,6 @@ FUNCTION zcr_scan_code_signals.
         lv_tok1       TYPE string,
         lv_tok2       TYPE string,
         lv_tok3       TYPE string,
-        lv_tok4       TYPE string,
         lv_after_from TYPE string,
         lv_after_into TYPE string,
         lv_next_tok   TYPE string,
@@ -311,7 +310,7 @@ FUNCTION zcr_scan_code_signals.
       ENDIF.
       TRANSLATE lv_stmt TO UPPER CASE.
 
-      CLEAR: lt_tokens, lv_tok1, lv_tok2, lv_tok3, lv_tok4,
+      CLEAR: lt_tokens, lv_tok1, lv_tok2, lv_tok3,
              lv_after_from, lv_after_into, lv_next_tok, lv_up_to,
              lv_from_pos, lv_into_pos, lv_up_pos,
              lt_pending, lv_table, lv_chk_tab, lv_variant, lv_fm_lit,
@@ -323,11 +322,12 @@ FUNCTION zcr_scan_code_signals.
 
       LOOP AT lt_tokens INTO lv_token.
         lv_idx = sy-tabix.
+        " Only the leading three tokens decide the statement kind.
         CASE lv_idx.
           WHEN 1. lv_tok1 = lv_token.
           WHEN 2. lv_tok2 = lv_token.
           WHEN 3. lv_tok3 = lv_token.
-          WHEN 4. lv_tok4 = lv_token.
+          WHEN OTHERS.
         ENDCASE.
         IF lv_token = 'FROM' AND lv_from_pos = 0.
           lv_from_pos   = lv_idx.
@@ -450,7 +450,11 @@ FUNCTION zcr_scan_code_signals.
                   lv_wait_var = 'WAIT FOR MESSAGING CHANNELS'.
                 WHEN 'PUSH'.
                   lv_wait_var = 'WAIT FOR PUSH CHANNELS'.
+                WHEN OTHERS.
+                  " Not a WAIT form this scanner knows - no signal.
               ENDCASE.
+            WHEN OTHERS.
+              " Not a WAIT form this scanner knows - no signal.
           ENDCASE.
 
           IF lv_wait_var IS NOT INITIAL.

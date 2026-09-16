@@ -127,12 +127,11 @@ FUNCTION zcr_get_dependency_obj_new.
         CALL FUNCTION 'REPOSITORY_ENVIRONMENT_RFC'
           EXPORTING
             obj_type        = ls_input-obj_type
-*           ENVIRONMENT_TYPES       =
             object_name     = ls_input-object_name
           TABLES
             environment_tab = lt_env
-*           SOURCE_OBJECTS  =
-          .
+          EXCEPTIONS
+            OTHERS          = 1.
 
         IF sy-subrc <> 0.
           CONTINUE.
@@ -195,20 +194,23 @@ FUNCTION zcr_get_dependency_obj_new.
         SELECT funcname
           INTO TABLE lt_funcs
           FROM tfdir
-          WHERE pname = lv_area.
+          WHERE pname = lv_area
+          ORDER BY funcname.
 
-        LOOP AT lt_funcs INTO ls_func.
+        IF sy-subrc = 0.
+          LOOP AT lt_funcs INTO ls_func.
 
-          IF ls_func-funcname NP 'Z*'
-          AND ls_func-funcname NP 'Y*'.
-            CONTINUE.
-          ENDIF.
+            IF ls_func-funcname NP 'Z*'
+            AND ls_func-funcname NP 'Y*'.
+              CONTINUE.
+            ENDIF.
 
-          APPEND VALUE #( type = 'FUNC' name = ls_func-funcname
-                           lookup_name = ls_func-funcname
-                           enrich_type = 'FUNC' ) TO lt_candidates.
+            APPEND VALUE #( type = 'FUNC' name = ls_func-funcname
+                             lookup_name = ls_func-funcname
+                             enrich_type = 'FUNC' ) TO lt_candidates.
 
-        ENDLOOP.
+          ENDLOOP.
+        ENDIF.
 
 
 *****************************************
@@ -217,20 +219,23 @@ FUNCTION zcr_get_dependency_obj_new.
         SELECT include
           INTO TABLE lt_includes
           FROM d010inc
-          WHERE master = lv_area.
+          WHERE master = lv_area
+          ORDER BY include.
 
-        LOOP AT lt_includes INTO ls_include.
+        IF sy-subrc = 0.
+          LOOP AT lt_includes INTO ls_include.
 
-          IF ls_include-include NP '*TOP'
-          AND ls_include-include NP '*UXX'.
-            CONTINUE.
-          ENDIF.
+            IF ls_include-include NP '*TOP'
+            AND ls_include-include NP '*UXX'.
+              CONTINUE.
+            ENDIF.
 
-          APPEND VALUE #( type = 'INCL' name = ls_include-include
-                           lookup_name = ls_include-include
-                           enrich_type = 'INCL' ) TO lt_candidates.
+            APPEND VALUE #( type = 'INCL' name = ls_include-include
+                             lookup_name = ls_include-include
+                             enrich_type = 'INCL' ) TO lt_candidates.
 
-        ENDLOOP.
+          ENDLOOP.
+        ENDIF.
 
       WHEN 'CLAS'.
 
@@ -249,7 +254,9 @@ FUNCTION zcr_get_dependency_obj_new.
             obj_type        = ls_input-obj_type
             object_name     = ls_input-object_name
           TABLES
-            environment_tab = lt_env.
+            environment_tab = lt_env
+          EXCEPTIONS
+            OTHERS          = 1.
 
         IF sy-subrc = 0.
           LOOP AT lt_env INTO ls_env.
@@ -288,22 +295,27 @@ FUNCTION zcr_get_dependency_obj_new.
           INTO TABLE lt_methods
           FROM seocompo
           WHERE clsname = ls_input-object_name
-            AND cmptype = '1'.
+            AND cmptype = '1'
+          ORDER BY cmpname.
 
-        LOOP AT lt_methods INTO ls_method.
+        " No early exit on an empty result - a class made only of
+        " redefinitions has nothing here but still needs the RTTI pass.
+        IF sy-subrc = 0.
+          LOOP AT lt_methods INTO ls_method.
 
-          APPEND VALUE #( type = 'METH' name = ls_method-cmpname
-                           lookup_name = ls_method-cmpname
-                           enrich_type = 'METH'
-                           parent = ls_input-object_name ) TO lt_candidates.
+            APPEND VALUE #( type = 'METH' name = ls_method-cmpname
+                             lookup_name = ls_method-cmpname
+                             enrich_type = 'METH'
+                             parent = ls_input-object_name ) TO lt_candidates.
 
-        ENDLOOP.
+          ENDLOOP.
+        ENDIF.
 
         " SEOCOMPO only has methods the class declares itself - pure
         " redefinitions (DEFINE/EXECUTE_ACTION overrides in an _EXT
         " class) have no row there, pick those up via RTTI instead.
         CLEAR lo_typedescr.
-        SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname)
+        SELECT SINGLE clsname FROM seoclass INTO @DATA(lv_exists_clsname) ##NEEDED
           WHERE clsname = @ls_input-object_name.
         IF sy-subrc = 0.
           TRY.
@@ -334,17 +346,20 @@ FUNCTION zcr_get_dependency_obj_new.
           INTO TABLE lt_interfaces
           FROM seometarel
           WHERE clsname = ls_input-object_name
-            AND reltype = '1'.
+            AND reltype = '1'
+          ORDER BY refclsname.
 
-        LOOP AT lt_interfaces INTO ls_interface.
+        IF sy-subrc = 0.
+          LOOP AT lt_interfaces INTO ls_interface.
 
-          " INTF as a referenced object is not enriched (only its member
-          " methods are, when the interface itself is later processed).
-          APPEND VALUE #( type = 'INTF' name = ls_interface-refclsname
-                           lookup_name = ls_interface-refclsname
-                           enrich_type = 'INTF' ) TO lt_candidates.
+            " INTF as a referenced object is not enriched (only its member
+            " methods are, when the interface itself is later processed).
+            APPEND VALUE #( type = 'INTF' name = ls_interface-refclsname
+                             lookup_name = ls_interface-refclsname
+                             enrich_type = 'INTF' ) TO lt_candidates.
 
-        ENDLOOP.
+          ENDLOOP.
+        ENDIF.
 
 
       WHEN 'INTF'.
@@ -356,17 +371,20 @@ FUNCTION zcr_get_dependency_obj_new.
           INTO TABLE lt_intf_methods
           FROM seocompo
           WHERE clsname = ls_input-object_name
-            AND cmptype = '1'.
+            AND cmptype = '1'
+          ORDER BY cmpname.
 
-        LOOP AT lt_intf_methods INTO ls_intf_method.
+        IF sy-subrc = 0.
+          LOOP AT lt_intf_methods INTO ls_intf_method.
 
-          APPEND VALUE #( type = 'METH'
-                           name = |{ ls_input-object_name }~{ ls_intf_method-cmpname }|
-                           lookup_name = ls_intf_method-cmpname
-                           enrich_type = 'METH'
-                           parent = ls_input-object_name ) TO lt_candidates.
+            APPEND VALUE #( type = 'METH'
+                             name = |{ ls_input-object_name }~{ ls_intf_method-cmpname }|
+                             lookup_name = ls_intf_method-cmpname
+                             enrich_type = 'METH'
+                             parent = ls_input-object_name ) TO lt_candidates.
 
-        ENDLOOP.
+          ENDLOOP.
+        ENDIF.
 
       WHEN 'DOMA' OR  'DTEL' OR 'TABL' OR 'TTYP'.
         "*****************************************
@@ -377,6 +395,10 @@ FUNCTION zcr_get_dependency_obj_new.
         ls_ddic_obj_list-object_name = ls_input-object_name.
         APPEND ls_ddic_obj_list TO li_ddic_obj_list.
         CONTINUE.
+
+      WHEN OTHERS.
+        " Unknown object type - nothing to resolve, but the object still
+        " gets its (empty) output entry below.
     ENDCASE.
 
     "=============================
