@@ -39,20 +39,20 @@ FUNCTION zcr_get_object_signature.
       IF sy-subrc = 0.
         CASE lv_subc.
           WHEN 'I'.
-            es_signature-program_type = 'Include'.
+            es_signature-program_type = 'Include' ##NO_TEXT.
             es_signature-is_include   = abap_true.
           WHEN 'F'.
-            es_signature-program_type = 'Function Group'.
+            es_signature-program_type = 'Function Group' ##NO_TEXT.
           WHEN 'M'.
-            es_signature-program_type = 'Module Pool'.
+            es_signature-program_type = 'Module Pool' ##NO_TEXT.
           WHEN 'S'.
-            es_signature-program_type = 'Subroutine Pool'.
+            es_signature-program_type = 'Subroutine Pool' ##NO_TEXT.
           WHEN 'J'.
-            es_signature-program_type = 'Interface Pool'.
+            es_signature-program_type = 'Interface Pool' ##NO_TEXT.
           WHEN 'K'.
-            es_signature-program_type = 'Class Pool'.
+            es_signature-program_type = 'Class Pool' ##NO_TEXT.
           WHEN OTHERS.
-            es_signature-program_type = 'Executable'.
+            es_signature-program_type = 'Executable' ##NO_TEXT.
         ENDCASE.
       ENDIF.
 

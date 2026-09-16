@@ -353,33 +353,33 @@ FUNCTION zcr_scan_code_signals.
         WHEN 'SELECT'.
           lv_table = lv_after_from.
           IF lv_tok2 = 'SINGLE'.
-            lv_variant = 'SELECT SINGLE'.
+            lv_variant = 'SELECT SINGLE' ##NO_TEXT.
           ELSE.
-            lv_variant = 'SELECT'.
+            lv_variant = 'SELECT' ##NO_TEXT.
           ENDIF.
           IF lv_padded CS ' FOR ALL ENTRIES '.
-            APPEND VALUE #( type = 'db_select_for_all_entries' ) TO lt_pending.
+            APPEND VALUE #( type = 'db_select_for_all_entries' ) TO lt_pending ##NO_TEXT.
           ELSE.
-            APPEND VALUE #( type = 'db_select' ) TO lt_pending.
+            APPEND VALUE #( type = 'db_select' ) TO lt_pending ##NO_TEXT.
           ENDIF.
 
         WHEN 'INSERT'.
           IF lv_tok2 = 'INTO'.
             lv_table   = lv_after_into.
-            lv_variant = 'INSERT'.
-            APPEND VALUE #( type = 'db_insert' ) TO lt_pending.
+            lv_variant = 'INSERT' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_insert' ) TO lt_pending ##NO_TEXT.
           ELSEIF lv_into_pos = 0 AND lv_from_pos > 0.
             lv_table   = lv_tok2.
-            lv_variant = 'INSERT'.
-            APPEND VALUE #( type = 'db_insert' ) TO lt_pending.
+            lv_variant = 'INSERT' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_insert' ) TO lt_pending ##NO_TEXT.
           ENDIF.
           " anything else is INSERT <line> INTO <itab> - not a DB write
 
         WHEN 'UPDATE'.
           " No internal-table UPDATE statement exists, so this is always DB.
           lv_table   = lv_tok2.
-          lv_variant = 'UPDATE'.
-          APPEND VALUE #( type = 'db_update' ) TO lt_pending.
+          lv_variant = 'UPDATE' ##NO_TEXT.
+          APPEND VALUE #( type = 'db_update' ) TO lt_pending ##NO_TEXT.
 
         WHEN 'MODIFY'.
           " SCREEN/LINE variants are list and dynpro statements, not tables.
@@ -390,48 +390,48 @@ FUNCTION zcr_scan_code_signals.
             " internal table or UI statement - no signal
           ELSEIF lv_padded CS ' FROM TABLE '.
             lv_table   = lv_tok2.
-            lv_variant = 'MODIFY'.
-            APPEND VALUE #( type = 'db_modify' ) TO lt_pending.
+            lv_variant = 'MODIFY' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_modify' ) TO lt_pending ##NO_TEXT.
           ELSEIF lv_from_pos > 0.
             " MODIFY <x> FROM <y> is identical for a DB table and an
             " internal table - only the system knows which <x> is.
             lv_table   = lv_tok2.
             lv_chk_tab = lv_tok2.
-            lv_variant = 'MODIFY'.
-            APPEND VALUE #( type = 'db_modify' ) TO lt_pending.
+            lv_variant = 'MODIFY' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_modify' ) TO lt_pending ##NO_TEXT.
           ENDIF.
 
         WHEN 'DELETE'.
           IF lv_tok2 = 'FROM'.
             lv_table   = lv_after_from.
-            lv_variant = 'DELETE'.
-            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+            lv_variant = 'DELETE' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending ##NO_TEXT.
           ELSEIF lv_tok2 = 'ADJACENT' OR lv_tok2 = 'TABLE' OR lv_tok2 = 'DATASET'
                  OR lv_padded CS ' INDEX ' OR lv_padded CS ' WHERE '.
             " internal table or file operation - no signal
           ELSEIF lv_from_pos > 0.
             lv_table   = lv_tok2.
-            lv_variant = 'DELETE'.
-            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+            lv_variant = 'DELETE' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending ##NO_TEXT.
           ELSE.
             lv_table   = lv_tok2.
             lv_chk_tab = lv_tok2.
-            lv_variant = 'DELETE'.
-            APPEND VALUE #( type = 'db_delete' ) TO lt_pending.
+            lv_variant = 'DELETE' ##NO_TEXT.
+            APPEND VALUE #( type = 'db_delete' ) TO lt_pending ##NO_TEXT.
           ENDIF.
 
         WHEN 'COMMIT'.
           IF lv_tok2 = 'WORK'.
             IF lv_padded CS ' AND WAIT '.
-              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK AND WAIT' ) TO lt_pending.
+              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK AND WAIT' ) TO lt_pending ##NO_TEXT.
             ELSE.
-              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK' ) TO lt_pending.
+              APPEND VALUE #( type = 'commit_work' detail = 'COMMIT WORK' ) TO lt_pending ##NO_TEXT.
             ENDIF.
           ENDIF.
 
         WHEN 'ROLLBACK'.
           IF lv_tok2 = 'WORK'.
-            APPEND VALUE #( type = 'rollback_work' detail = 'ROLLBACK WORK' ) TO lt_pending.
+            APPEND VALUE #( type = 'rollback_work' detail = 'ROLLBACK WORK' ) TO lt_pending ##NO_TEXT.
           ENDIF.
 
         WHEN 'WAIT'.
@@ -439,17 +439,17 @@ FUNCTION zcr_scan_code_signals.
           " are reported; the variant is what tells them apart.
           CASE lv_tok2.
             WHEN 'UP'.
-              lv_wait_var = 'WAIT'.
+              lv_wait_var = 'WAIT' ##NO_TEXT.
             WHEN 'UNTIL'.
-              lv_wait_var = 'WAIT UNTIL'.
+              lv_wait_var = 'WAIT UNTIL' ##NO_TEXT.
             WHEN 'FOR'.
               CASE lv_tok3.
                 WHEN 'ASYNCHRONOUS'.
-                  lv_wait_var = 'WAIT FOR ASYNCHRONOUS TASKS'.
+                  lv_wait_var = 'WAIT FOR ASYNCHRONOUS TASKS' ##NO_TEXT.
                 WHEN 'MESSAGING'.
-                  lv_wait_var = 'WAIT FOR MESSAGING CHANNELS'.
+                  lv_wait_var = 'WAIT FOR MESSAGING CHANNELS' ##NO_TEXT.
                 WHEN 'PUSH'.
-                  lv_wait_var = 'WAIT FOR PUSH CHANNELS'.
+                  lv_wait_var = 'WAIT FOR PUSH CHANNELS' ##NO_TEXT.
                 WHEN OTHERS.
                   " Not a WAIT form this scanner knows - no signal.
               ENDCASE.
@@ -460,9 +460,9 @@ FUNCTION zcr_scan_code_signals.
           IF lv_wait_var IS NOT INITIAL.
             IF lv_up_to IS NOT INITIAL.
               APPEND VALUE #( type   = 'wait'
-                              detail = |{ lv_wait_var } UP TO { lv_up_to } SECONDS| ) TO lt_pending.
+                              detail = |{ lv_wait_var } UP TO { lv_up_to } SECONDS| ) TO lt_pending ##NO_TEXT.
             ELSE.
-              APPEND VALUE #( type = 'wait' detail = lv_wait_var ) TO lt_pending.
+              APPEND VALUE #( type = 'wait' detail = lv_wait_var ) TO lt_pending ##NO_TEXT.
             ENDIF.
           ENDIF.
 
@@ -477,30 +477,33 @@ FUNCTION zcr_scan_code_signals.
             " DESTINATION and one of the others, so the more specific
             " addition wins.
             IF lv_padded CS ' STARTING NEW TASK '.
-              lv_rfc_kind = 'asynchronous RFC (STARTING NEW TASK)'.
+              lv_rfc_kind = 'asynchronous RFC (STARTING NEW TASK)' ##NO_TEXT.
             ELSEIF lv_padded CS ' IN BACKGROUND TASK '.
-              lv_rfc_kind = 'transactional RFC (IN BACKGROUND TASK)'.
+              lv_rfc_kind = 'transactional RFC (IN BACKGROUND TASK)' ##NO_TEXT.
             ELSEIF lv_padded CS ' IN BACKGROUND UNIT '.
-              lv_rfc_kind = 'background RFC (IN BACKGROUND UNIT)'.
+              lv_rfc_kind = 'background RFC (IN BACKGROUND UNIT)' ##NO_TEXT.
             ELSEIF lv_padded CS ' DESTINATION '.
-              lv_rfc_kind = 'synchronous RFC (DESTINATION)'.
+              lv_rfc_kind = 'synchronous RFC (DESTINATION)' ##NO_TEXT.
             ENDIF.
 
             IF lv_rfc_kind IS NOT INITIAL.
               APPEND VALUE #( type   = 'rfc_call'
-                              detail = |CALL FUNCTION { lv_tok3 } - { lv_rfc_kind }| ) TO lt_pending.
+                              detail = |CALL FUNCTION { lv_tok3 } - { lv_rfc_kind }| ) TO lt_pending ##NO_TEXT.
             ENDIF.
 
             " An RFC-enabled lock call is both, so these are independent
             " of the DESTINATION check above rather than an ELSE branch.
             IF lv_fm_lit CP 'ENQUEUE_*'.
               APPEND VALUE #( type   = 'enqueue'
-                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending.
+                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending ##NO_TEXT.
             ELSEIF lv_fm_lit CP 'DEQUEUE_*'.
               APPEND VALUE #( type   = 'dequeue'
-                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending.
+                              detail = |CALL FUNCTION { lv_tok3 }| ) TO lt_pending ##NO_TEXT.
             ENDIF.
           ENDIF.
+
+        WHEN OTHERS.
+          " Any other statement - nothing this scanner reports on.
 
       ENDCASE.
 
@@ -530,7 +533,7 @@ FUNCTION zcr_scan_code_signals.
       " A table name in parentheses is supplied at runtime, so there's no
       " concrete name to report - the statement still counts though.
       IF lv_table IS NOT INITIAL AND lv_table(1) = '('.
-        lv_table = 'dynamic table name'.
+        lv_table = 'dynamic table name' ##NO_TEXT.
       ENDIF.
 
       LOOP AT lt_pending INTO ls_pending.
@@ -541,7 +544,7 @@ FUNCTION zcr_scan_code_signals.
 
         IF ls_pending-detail IS NOT INITIAL.
           ls_signal-detail = ls_pending-detail.
-        ELSEIF lv_table = 'dynamic table name'.
+        ELSEIF lv_table = 'dynamic table name' ##NO_TEXT.
           ls_signal-detail = |{ lv_variant } on dynamic table name|.
         ELSEIF lv_table IS NOT INITIAL.
           ls_signal-detail = |{ lv_variant } on table { lv_table }|.
