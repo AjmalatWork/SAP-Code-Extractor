@@ -37,8 +37,10 @@ CHAR1 domains with 'X'/' ' values, so no code impact either way).
 
 DDIC objects for ZCR_SCAN_CODE_SIGNALS (code_signals feature)
 ===========================================================================
-STATUS: not yet created. Needed before ZCR_SCAN_CODE_SIGNALS and the
-updated ZCR_GET_DEPENDENCY_OBJ_NEW will activate.
+STATUS: created in the system. COUNT and LEVEL both turned out to be
+reserved words, so those fields are ZCOUNT and ZLEVEL. The JSON keys still
+have to read "count" and "level", so ZCR_GET_DEPENDENCY_OBJ_NEW passes a
+NAME_MAPPINGS table on its /ui2/cl_json=>serialize call to map them back.
 
 4) Structure ZCR_TS_CODE_SIGNAL  ("one risky construct found in a dependency")
    Short text: Code Signal (Code Extractor)
@@ -47,13 +49,9 @@ updated ZCR_GET_DEPENDENCY_OBJ_NEW will activate.
    ---------   -------------   --------------
    TYPE        Types           Z_STRING   " db_select / commit_work / rfc_call / ...
    DETAIL      Types           Z_STRING   " e.g. "SELECT SINGLE on table VBAP"
-   COUNT       Types           INT4       " repeats of same TYPE+DETAIL collapsed into one row
-   LEVEL       Types           INT4       " 1 = in the dependency itself, 2 = in something it calls
-   VIA         Types           Z_STRING   " only filled when LEVEL > 1
-
-   If SE11 rejects COUNT as a reserved word, name it ZCOUNT and tell me - the
-   JSON key has to stay "count", so I'd add a NAME_MAPPINGS entry on the
-   /ui2/cl_json=>serialize call rather than let the key change.
+   ZCOUNT      Types           INT4       " repeats of same TYPE+DETAIL collapsed into one row
+   ZLEVEL      Types           INT4       " 1 = in the dependency itself, 2 = in something it calls
+   VIA         Types           Z_STRING   " only filled when ZLEVEL > 1
 
 5) Table type ZCR_TT_CODE_SIGNAL
    Short text: Code Signal Table (Code Extractor)

@@ -27,6 +27,10 @@ FUNCTION zcr_scan_code_signals.
 * objects only mined for signals. Anything unreadable (standard SAP,
 * dynamic call targets, deleted objects) is skipped without comment.
 *
+* COUNT and LEVEL are both reserved in DDIC, so the fields are ZCOUNT
+* and ZLEVEL. ZCR_GET_DEPENDENCY_OBJ_NEW maps them back to "count" and
+* "level" when it serializes, so the JSON keys stay clean.
+*
 * NOTE: subroutines (FORM) and local classes cannot live inside
 * FUNCTION/ENDFUNCTION, so this stays a single block. It is ordered as
 * source -> logical statements -> signals to keep the phases separable.
@@ -525,9 +529,9 @@ FUNCTION zcr_scan_code_signals.
 
       LOOP AT lt_pending INTO ls_pending.
         CLEAR ls_signal.
-        ls_signal-type  = ls_pending-type.
-        ls_signal-level = ls_queue-depth.
-        ls_signal-via   = ls_queue-via.
+        ls_signal-type   = ls_pending-type.
+        ls_signal-zlevel = ls_queue-depth.
+        ls_signal-via    = ls_queue-via.
 
         IF ls_pending-detail IS NOT INITIAL.
           ls_signal-detail = ls_pending-detail.
@@ -586,12 +590,12 @@ FUNCTION zcr_scan_code_signals.
     READ TABLE et_signals ASSIGNING FIELD-SYMBOL(<fs_sig>)
       WITH KEY type   = ls_signal-type
                detail = ls_signal-detail
-               level  = ls_signal-level
+               zlevel = ls_signal-zlevel
                via    = ls_signal-via.
     IF sy-subrc = 0.
-      <fs_sig>-count = <fs_sig>-count + 1.
+      <fs_sig>-zcount = <fs_sig>-zcount + 1.
     ELSE.
-      ls_signal-count = 1.
+      ls_signal-zcount = 1.
       APPEND ls_signal TO et_signals.
     ENDIF.
   ENDLOOP.

@@ -446,9 +446,15 @@ FUNCTION zcr_get_dependency_obj_new.
   " Convert to JSON
   "=============================
   IF iv_lightweight = abap_false.
+    " COUNT and LEVEL are reserved in DDIC, so ZCR_TS_CODE_SIGNAL carries
+    " them as ZCOUNT/ZLEVEL. Map them back here rather than let the ABAP
+    " naming leak into the JSON the reviewer consumes.
     ev_json = /ui2/cl_json=>serialize(
-      data     = lt_output
-      compress = abap_true ).
+      data          = lt_output
+      compress      = abap_true
+      name_mappings = VALUE /ui2/cl_json=>name_mappings(
+                        ( abap = 'ZCOUNT' json = 'count' )
+                        ( abap = 'ZLEVEL' json = 'level' ) ) ).
   ENDIF.
 
   IF li_ddic_obj_list IS NOT INITIAL AND iv_lightweight = abap_false.
