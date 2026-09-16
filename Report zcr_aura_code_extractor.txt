@@ -1,31 +1,7 @@
 REPORT zcr_aura_code_extractor.
 
 INCLUDE zcr_aura_code_extractor_top.
-
-*&---------------------------------------------------------------------*
-*& Selection Screen
-*&---------------------------------------------------------------------*
-SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
-PARAMETERS: rb_tr   RADIOBUTTON GROUP grp1 DEFAULT 'X' USER-COMMAND ucomm,
-            rb_prog RADIOBUTTON GROUP grp1,
-            rb_clas RADIOBUTTON GROUP grp1,
-            rb_func RADIOBUTTON GROUP grp1.
-SELECTION-SCREEN END OF BLOCK b1.
-
-SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
-SELECT-OPTIONS: so_tr   FOR gv_tr_dummy   MODIF ID tr  NO INTERVALS,
-                so_prog FOR gv_prog_dummy MODIF ID prg NO INTERVALS,
-                so_clas FOR gv_clas_dummy MODIF ID cls NO INTERVALS,
-                so_func FOR gv_func_dummy MODIF ID fnc NO INTERVALS.
-
-PARAMETERS: p_file TYPE string OBLIGATORY DEFAULT 'C:\temp\' ##NO_TEXT.
-SELECTION-SCREEN END OF BLOCK b2.
-
-SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
-PARAMETERS: rb_bloc RADIOBUTTON GROUP grp2 DEFAULT 'X' USER-COMMAND ucomm,
-            rb_diff RADIOBUTTON GROUP grp2,
-            rb_full RADIOBUTTON GROUP grp2.
-SELECTION-SCREEN END OF BLOCK b3.
+INCLUDE zcr_aura_code_extractor_sel.
 
 *&---------------------------------------------------------------------*
 *& Screen / F4 Events
