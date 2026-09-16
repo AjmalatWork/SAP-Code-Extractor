@@ -1135,8 +1135,6 @@ FORM append_differential_output USING it_code_old TYPE tt_code_line
         APPEND VALUE #( line = |LINE { lv_line_no }: + { ls_unified-line }| ) TO gt_output.
       WHEN 'D'.
         APPEND VALUE #( line = |LINE { lv_line_no }: - { ls_unified-line }| ) TO gt_output.
-      WHEN '~'.
-        APPEND VALUE #( line = |LINE { lv_line_no }: ~ { ls_unified-line }| ) TO gt_output.
     ENDCASE.
   ENDLOOP.
 ENDFORM.
@@ -1170,7 +1168,10 @@ ENDFORM.
 *       from IT_CODE_NEW by position. The walk below keeps one pointer
 *       per version and treats NUMBER as old-side throughout - reading
 *       it as a new-side index dropped context lines and printed the
-*       old text under "~".
+*       old text as if it were the change.
+*
+*       The stream uses three flags only: ' ' unchanged, 'D' removed,
+*       'I' added - plain unified-diff convention, nothing to explain.
 *&---------------------------------------------------------------------*
 FORM build_unified_code USING it_code_old TYPE tt_code_line
                                it_code_new TYPE tt_code_line
@@ -1206,13 +1207,16 @@ FORM build_unified_code USING it_code_old TYPE tt_code_line
         lv_idx_old = lv_idx_old + 1.
 
       WHEN 'M' OR 'U'.                 " One old line replaced by one new
-        " Show what it was as well as what it is now - a reviewer needs
-        " both to judge a modification, and the delta only carries the
-        " old text, so it costs nothing extra to keep it.
+        " Rendered as a deletion followed by an insertion, same as the
+        " D/I pairs SVRS emits when it can't line the two versions up
+        " 1:1. Whether an edit arrives as U or as D+I is down to how
+        " the delta algorithm happened to align things, not to anything
+        " about the edit itself, so giving it its own marker only made
+        " the same kind of change look different from place to place.
         APPEND VALUE #( flag = 'D' line = ls_delta-line ) TO ct_unified.
         READ TABLE it_code_new INTO ls_code_new INDEX lv_idx_new.
         IF sy-subrc = 0.
-          APPEND VALUE #( flag = '~' line = ls_code_new-line ) TO ct_unified.
+          APPEND VALUE #( flag = 'I' line = ls_code_new-line ) TO ct_unified.
         ENDIF.
         lv_idx_old = lv_idx_old + 1.
         lv_idx_new = lv_idx_new + 1.
@@ -1289,9 +1293,6 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
         lv_block_changed = abap_true.
       WHEN 'D'.
         ls_output-line = |LINE { lv_line_no }: - { ls_unified-line }|.
-        lv_block_changed = abap_true.
-      WHEN '~'.
-        ls_output-line = |LINE { lv_line_no }: ~ { ls_unified-line }|.
         lv_block_changed = abap_true.
       WHEN OTHERS.
         ls_output-line = |LINE { lv_line_no }: = { ls_unified-line }|.
