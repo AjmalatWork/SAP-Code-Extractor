@@ -1,0 +1,138 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMS_TEST4_TOP
+*&---------------------------------------------------------------------*
+
+DATA: gv_api_key TYPE string VALUE ''.
+DATA lo_client TYPE REF TO if_http_client.
+DATA lo_cache_client TYPE REF TO if_http_client.
+
+DATA lo_response TYPE REF TO if_rest_entity.
+
+DATA lv_response TYPE string.
+DATA lv_result_json TYPE string.
+data gt_result_json type STANDARD TABLE OF string.
+
+DATA lv_token TYPE string.
+
+DATA lv_session TYPE string.
+
+DATA lv_xcrf TYPE string.
+
+DATA lv_http_status TYPE string.
+
+DATA GV_NUM_CALL TYPE I.
+
+DATA gc_content_type_form TYPE string VALUE 'application/json; charset=utf-8'.
+
+DATA gc_google_api TYPE string VALUE 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'.
+*DATA gc_google_api TYPE string VALUE 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent'.
+*DATA gc_google_api TYPE string VALUE 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'.
+*DATA gc_google_api TYPE string VALUE 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent'.
+
+DATA: lv_payload TYPE string.
+
+TYPES :BEGIN OF gty_file,
+         line TYPE string,
+       END OF gty_file.
+
+TYPES: gty_tt_file TYPE TABLE OF gty_file.
+
+DATA: gt_records       TYPE TABLE OF gty_file,
+      gt_file_content  TYPE TABLE OF gty_file,
+      gt_file_content1 TYPE TABLE OF gty_file,
+      gs_file_content  TYPE gty_file.
+
+DATA: gv_file TYPE string.
+
+DATA: gt_program_code TYPE TABLE OF abaptxt255,
+      gs_program_code TYPE abaptxt255.
+
+DATA: lv_prompt        TYPE string,
+      lv_sys_instruct  TYPE string,
+      lv_p1            TYPE string,
+      lv_p2            TYPE string,
+      lv_p3            TYPE string,
+      lv_p4            TYPE string,
+      lv_p5            TYPE string,
+      lv_p6            TYPE string,
+      lv_p7            TYPE string,
+      lv_p8            TYPE string,
+      lv_p9            TYPE string,
+      lv_p10           TYPE string,
+      lv_p11           TYPE string,
+      lv_p12           TYPE string,
+      lv_p13           TYPE string,
+      lv_p_prompt      TYPE string,
+      lv_program_lines TYPE string,
+      lv_file_content  TYPE string,
+      lv_file_content1 TYPE string.
+
+
+DATA: lv_regex TYPE string VALUE '(?s)FORM\s*(.*?)\s*ENDFORM'.
+
+TYPES : BEGIN OF ty_result_data,
+          value(400) TYPE c,
+        END OF ty_result_data.
+
+DATA : gt_result_data TYPE TABLE OF ty_result_data,
+       gs_result_data TYPE ty_result_data.
+
+ DATA: gv_token_info TYPE string.
+DATA: lr_data TYPE REF TO data.
+DATA : lo_output TYPE REF TO cl_demo_output.
+*
+** Basic Text Part
+*TYPES: BEGIN OF ty_part,
+*         text TYPE string,
+*       END OF ty_part.
+*
+*TYPES: ty_parts_tab TYPE STANDARD TABLE OF ty_part WITH DEFAULT KEY.
+*
+** Content Node (Role + Parts)
+*TYPES: BEGIN OF ty_content,
+*         role  TYPE string,
+*         parts TYPE ty_parts_tab,
+*       END OF ty_content.
+*
+*TYPES: ty_contents_tab TYPE STANDARD TABLE OF ty_content WITH DEFAULT KEY.
+*
+** System Instruction Node
+*TYPES: BEGIN OF ty_system_instruction,
+*         parts TYPE ty_parts_tab,
+*       END OF ty_system_instruction.
+*
+** The Main Cache Payload Structure
+*TYPES: BEGIN OF ty_cache_payload,
+*         model             TYPE string,
+*         ttl               TYPE string,
+*         systeminstruction TYPE ty_system_instruction,
+*         contents          TYPE ty_contents_tab,
+*       END OF ty_cache_payload.
+*
+** Structure to hold the API's caching response
+*TYPES: BEGIN OF ty_cache_response,
+*         name       TYPE string,
+*         expiretime TYPE string,
+*         createtime TYPE string,
+*       END OF ty_cache_response.
+*
+*DATA: ls_cache_response TYPE ty_cache_response,
+*      lv_response_json  TYPE string,
+*      gv_cache_name     TYPE string,
+*      gv_expire_time    TYPE string.
+*
+*
+*DATA: ls_cache_payload TYPE ty_cache_payload,
+*      ls_content       TYPE ty_content,
+*      ls_part          TYPE ty_part,
+*      lv_json_payload TYPE string.
+*
+*DATA : ls_act_cache TYPE ZSSU_ACT_CACHE,
+*       li_act_cache TYPE TABLE OF ZSSU_ACT_CACHE.
+
+FIELD-SYMBOLS: <lv_model>      TYPE any,
+               <lt_candidates> TYPE ANY TABLE,
+               <lv_content>    TYPE any,
+               <lv_parts>      TYPE any,
+               <lt_output>     TYPE any,
+               <lv_text>       TYPE any.

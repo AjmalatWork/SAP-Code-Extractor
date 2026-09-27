@@ -1,0 +1,27 @@
+S.No.,Rule,Tag,Rule Contents
+1,Return Code,MUST,SY-SUBRC must be checked only if the EXCEPTION statement is used when calling a function module.
+2,Return Code,MUST,The return code SY-SUBRC must be tested immediately after the statement being checked.
+3,Exception Management,MUST,All exceptions raised using the RAISE statement must be declared in the function module interface.
+4,Exception Management,MUST,All exceptions declared in the function module interface must be used at least once.
+5,Authorization Objects,MUST,Authorization checks must be implemented using authorization objects and the AUTHORITY-CHECK statement.
+6,Authorization Objects,SHOULD ,Standard authorization objects should be used whenever possible.
+7,Authorization Objects,MUST NOT,"Authorization checks must not be implemented by checking user role assignments, as role checks are not robust enough."
+8,Authorization Objects,MUST NOT,The profiles SAP_ALL and SAP_NEW must not be used.
+9,S_TABU_DIS,MUST,Authorization object S_TABU_DIS must be used only for Z* authorization groups in business roles.
+10,Runtime Change,MUST NOT,No change of the current user (SY-UNAME) must be done at runtime.
+11,Security Logging and Monitoring,MUST,"When message logs are required, they must be handled using standard SAP logging functions (transaction SLG1)."
+12,Security Logging and Monitoring,MUST NOT,Sensitive data must not be included in log messages.
+13,Security Logging and Monitoring,MUST NOT,"SAP password hash data must not be made public, as it contains sensitive personal information."
+14,Security Logging and Monitoring,MUST NOT,"SELECT * must not be used on sensitive tables or views (USR02, USH02, USRPWDHISTORY, USH02_ARC_TMP, VUSER001, VPWD_USR02); fields must be selected individually."
+15,Security Logging and Monitoring,MUST NOT,"Sensitive data must not be included in any MESSAGE (success, error, warning, or information) presented to the end user."
+16,Security Logging and Monitoring,MUST NOT,MESSAGE statements (message class and number) must not contain any sensitive data.
+17,Security Logging and Monitoring,SHOULD NOT,Change logs should not be activated on application tables due to the large volume of generated data.
+18,Interfaces,MUST,The only acceptable exception for using cl_http_client=>create_by_url is when the API URL is dynamic (e.g. AWS endpoints for large files).
+19,Interfaces,SHOULD ,REST or OData APIs should be used as the preferred solution compared to SOAP web services.
+20,Interfaces,MUST NOT,cl_http_client=>create_by_url must not be used; cl_http_client=>create_by_destination must be used instead.
+21,Shared memory,SHOULD ,The use of ABAP IMPORT/EXPORT commands to/from memory should be limited and justified only after a detailed requirement analysis; alternate solutions should also be studied.
+22,Shared memory,MUST NOT,Shared memory objects created using transaction SHMA must not be used.
+23,Shared memory,MUST NOT,Sensitive data must not be stored in a Parameter ID; Parameter IDs use GET/SET commands to access data in global memory.
+24,Shared memory,MUST NOT,The Shared Memory Enabled flag must not be set for custom classes.
+25,Binary,MUST NOT,"Binary files (jar, exe) must not be uploaded inside the content server."
+,,,

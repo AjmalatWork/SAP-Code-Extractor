@@ -1,0 +1,22 @@
+S.No.,Rule,Tag,Rule Content
+1,Page header for spool list,MUST,A spool list must have a page header displayed on one single line by default.
+2,Page header for spool list,MUST,"The page header must contain program name, program title, user, run date, run time, and page number."
+3,Page header for spool list,MUST,Page header information must be taken from SYST table only.
+4,Page header for spool list,MUST,"Layout must be: Left ? Program name, Middle ? Program title, Right ? User / Date / Hour / Page number."
+5,Page header for spool list,SHOULD ,"For ALV reports, a simplified header layout should be used."
+6,Default synthetic information,MUST,"The default synthetic report must be composed of three parts: type of run, input indicators, and output indicators."
+7,Default synthetic information,MUST,"If the test-run flag is set, the line must be “TEST RUN EXECUTION”; otherwise it must be “REAL EXECUTION”."
+8,Default synthetic information,MUST,"For each input file, a line must display the nature of object (“FILE”), complete file name, and number of lines in the file."
+9,Default synthetic information,MUST,One line must be created for each external object or action (output file or batch-input).
+10,Default synthetic information,MUST,"Output lines must include nature of object (“FILE” or “BI”), complete name, action description (e.g. CREATE/UPDATE/DELETE), and number of lines or number of transactions."
+11,Default list of error,MUST,The error or anomaly list must be generated as a spool list and displayed after the synthetic information section.
+12,Default list of error,MUST,Each error must be displayed on one single line and grouped by error message.
+13,Default list of error,MUST,Each error line must start with a sequential error number followed by an error message (standard BAPI message or specific validation message).
+14,Default list of error,MUST,"Each error line must include the line number in the file, the first 50 characters of the erroneous line, and other significant information required for error correction."
+15,Default report for no-selected data,SHOULD ,The selection screen must display a warning message “No data selected” if the user executes the report without selecting any data.
+16,Standard texts,MUST,All complex paragraphs must be documented in standard text (SO10) in English and identified in the form by standard text ID.
+17,Standard texts,MUST,Standard texts must be identified and called in the program using their Standard Text ID.
+18,Standard texts,MUST NOT,"Short texts that describe a block or frame of frame must not be included in standard text. Example: In form “List of applicable publications”, remarks about CMMs, SBs, SILs, TEBs are exceptions                                                                 “REMARK:As CMMM’s, CMMV’s, SB’s, SIL’s, TEB’s, are subject to permanent updating (each
+individual CMM, SB, SIL, TEB, bear a different issue/revision date) these documents are not part of
+the LAP chart. For CMM’s please refer to the CDS and./or CEL document and for CB’s, SIL’s, TEB’s,
+to the respective index.”"

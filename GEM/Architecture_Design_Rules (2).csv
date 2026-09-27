@@ -1,0 +1,32 @@
+S.No.,Rule,Tag,Rule content
+1,Code Length,MUST NOT,The number of lines between FORM and ENDFORM must not exceed 500.
+2,Displayed Lines,MUST NOT,"Programs must not retrieve and display more than 20,000 lines."
+3,Batch Input,SHOULD NOT,Batch input programs should not be used.
+4,Batch Input,SHOULD ,A BAPI-based solution should be used in priority.
+5,Search help,MUST,Search help must be used for all select-options and parameters when a unique list of values exists.
+6,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All object updates must be synchronized when a transactional treatment updates multiple tables without native lock management.
+7,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Access by other users must be prevented during the create or update process.
+8,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All identified objects must be locked using lock object functions before any update.
+9,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,"If any required object is already locked, all updates must be stopped or failed."
+10,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Objects must be created or updated only after all locks are successfully acquired.
+11,"Concurrent access management
+Step 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All locked objects must be unlocked after processing is completed.
+12,Range number,MUST,Standard number ranges (transaction SNRO) must be used when a specification defines an increment field without describing the technical method to determine the next value.
+13,File Handling,MUST,Logical filenames must be used when a filename is provided by the user.
+14,File Handling,MUST,Special characters must be removed from user-provided filenames before use.
+15,File Handling,MUST,Filename and path checks must be performed to prevent access outside the application scope.
+16,File Handling,MUST,Transaction FILE must be used to manage file paths instead of hard-coded paths.
+17,File Handling,MUST,Transaction FILE must be used to define logical paths and logical filenames.
+18,File Handling,MUST,File upload and download must be restricted to authorized application paths and accepted file types.
+19,File Handling,MUST,System-specific CASE logic for file paths must be avoided.
+20,Access to data from other application,MUST,Access to data belonging to another project must be formally requested from the owning project through a service.
+21,Access to data from other application,SHOULD ,"When accessing standard SAP data (e.g. materials, BOMs), access must be provided via a standard BAPI."
+22,Package organization,MUST,All development must be assigned to a dedicated package following the naming convention ZZ<APPLICATION_CODE><FREE> 
+23,Usage of other project ressources,MUST NOT,"Project B must not directly use objects (tables, classes, function modules, etc.) of Project A."
+24,Usage of other project ressources,MUST,"Project A must expose interfaces (API, function module, class, etc.) for its objects."
+25,Usage of other project ressources,MUST,Project B must use only the exposed interfaces from Project A.

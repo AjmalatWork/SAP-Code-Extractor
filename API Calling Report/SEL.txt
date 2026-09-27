@@ -1,0 +1,110 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMS_TEST_4_SEL
+*&---------------------------------------------------------------------*
+
+SELECTION-SCREEN BEGIN OF BLOCK frame1 WITH FRAME TITLE TEXT-005.
+
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: r_prg RADIOBUTTON GROUP rgp1 DEFAULT 'X' .
+    FORMAT COLOR COL_POSITIVE.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-011.
+    FORMAT COLOR OFF.
+    PARAMETERS: p_prg TYPE progname DEFAULT 'ZMV_TEST_AI' OBLIGATORY.
+
+  SELECTION-SCREEN END OF LINE.
+
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: r_class RADIOBUTTON GROUP rgp1 .
+    FORMAT COLOR COL_POSITIVE.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-010.
+    FORMAT COLOR OFF.
+    PARAMETERS: p_class TYPE seoclsname DEFAULT 'ZCL_AMDP_TEST' MATCHCODE OBJECT seo_classes_interfaces."OBLIGATORY.
+    PARAMETERS: p_method TYPE seocpdname DEFAULT 'GET_TEST_DATA' ."OBLIGATORY.
+  SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK frame1.
+
+SELECTION-SCREEN BEGIN OF BLOCK frame2 WITH FRAME TITLE TEXT-003.
+  " --- Option 1: Review as per Coding Guidelines ---
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_guide AS CHECKBOX DEFAULT 'X'."RADIOBUTTON GROUP rgrp DEFAULT 'X'.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-001.
+    PARAMETERS: p_file TYPE char100."
+  SELECTION-SCREEN END OF LINE.
+
+  " --- Display Refactored Code ---
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: c_refcd AS CHECKBOX DEFAULT 'X'.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-006.
+  SELECTION-SCREEN END OF LINE.
+
+  " --- Display Token Details ---
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_tokdet AS CHECKBOX DEFAULT 'X'.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-007.
+  SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK frame2.
+
+SELECTION-SCREEN BEGIN OF BLOCK frame3 WITH FRAME TITLE TEXT-012.
+  " --- Option 2: Review as per Requirements ---
+  selection-screen begin of line.
+    parameters: p_req   AS CHECKBOX."radiobutton group rgr1.
+    selection-screen comment 4(40) text-002.
+    parameters: p_file1 type char100."
+  selection-screen end of line.
+
+  " --- Review only the latest change ---
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: c_latest AS CHECKBOX.
+    SELECTION-SCREEN COMMENT 4(40) TEXT-008.
+  SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK frame3.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+
+  DATA: lv_file_path  TYPE string,
+        lt_file_table TYPE filetable,
+        lv_rc         TYPE i.
+
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+*     i_title           = 'Select File'
+      window_title      = 'Select File'
+      initial_directory = 'C:\' " Optional: Set initial directory
+*     file_filter       = '*.txt,Text Files (*.txt)|*.csv,CSV Files (*.csv)|*.*,All Files (*.*)' " Optional: File filter
+    CHANGING
+      file_table        = lt_file_table
+      rc                = lv_rc.
+
+  IF lv_rc IS NOT INITIAL. " If a file was selected
+    READ TABLE lt_file_table INDEX 1 INTO lv_file_path.
+    IF sy-subrc = 0.
+      p_file = lv_file_path. " Set the selected file path to the input field
+    ENDIF.
+  ENDIF.
+
+
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file1.
+*
+*
+*  DATA: lv_file_path  TYPE string,
+*        lt_file_table TYPE filetable,
+*        lv_rc         TYPE i.
+*
+*  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+*    EXPORTING
+**     i_title           = 'Select File'
+*      window_title      = 'Select File'
+*      initial_directory = 'C:\' " Optional: Set initial directory
+**     file_filter       = '*.txt,Text Files (*.txt)|*.csv,CSV Files (*.csv)|*.*,All Files (*.*)' " Optional: File filter
+*    CHANGING
+*      file_table        = lt_file_table
+*      rc                = lv_rc.
+*
+*  IF lv_rc IS NOT INITIAL. " If a file was selected
+*    READ TABLE lt_file_table INDEX 1 INTO lv_file_path.
+*    IF sy-subrc = 0.
+*      p_file1 = lv_file_path. " Set the selected file path to the input field
+*    ENDIF.
+*  ENDIF.

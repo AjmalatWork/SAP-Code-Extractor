@@ -1,0 +1,25 @@
+S.No.,Rule,Tag,Rule
+1,"User-exit, enhancement, standard modification",MUST,"User-exits, enhancements, and BADIs must be implemented by SAP Operation."
+2,"User-exit, enhancement, standard modification",MUST,Standard modifications (with modification key) must be implemented by SAP Operation.
+3,"User-exit, enhancement, standard modification",MUST,Standard indexes must be implemented by SAP Operation.
+4,"User-exit, enhancement, standard modification",MUST,BADI must be evaluated first as the integration option.
+5,"User-exit, enhancement, standard modification",MUST,"If no suitable BADI exists, a customer exit must be evaluated next."
+6,"User-exit, enhancement, standard modification",MUST,"If no BADI or customer exit exists, a standard include program must be evaluated for enhancement."
+7,"User-exit, enhancement, standard modification",MUST,Events (based on modification object technology) must be evaluated as the last option.
+8,DB commit,MUST NOT,"Database COMMIT must not execute in the middle of a SAP standard transaction (e.g., user exit, enhancement)."
+9,DB operation on standard table,MUST NOT,Data in SAP standard tables must not manipulated directly in custom programs.
+10,DB operation on standard table,SHOULD ,"Standard functions, BAPIs, or data classes should be used to create, update, or delete standard SAP data."
+11,DB operation on standard table,SHOULD NOT,"Direct database operations (UPDATE, DELETE, INSERT, MODIFY) should not be performed on SAP standard tables or tables from packages ZPR21 / ZZB160."
+12,DB operation on standard table,MUST,"When an exception is required, it must be logged in table ZDCZZT94 and handled by SAP Operation."
+13,User exits,MUST NOT,Text enhancements must not be used.
+14,User exits,MUST NOT,FIELD-EXIT must not be used.
+15, Business Add-Ins,MUST,"When a project uses a BADI, its specific entry must be created in ZDCZZT20 before coding."
+16, Business Add-Ins,MUST,Each project must implement its logic in its own specific class.
+17, Business Add-Ins,MUST,Required check parameters must be evaluated at the beginning of each BADI method.
+18, Business Add-Ins,SHOULD ,Only BADI methods with significant parameters should be used.
+19, Business Add-Ins,MUST,Only one implementation per Business Add-In must be activated at the same time.
+20, Business Add-Ins,MUST,"If the BADI does not provide the exception parameter CANCEL, include ZPCZZI21 must be used."
+21, Business Add-Ins,MUST,"For each new functionality requested by a project, the ABAP code must be written in a project-specific class."
+22, Business Add-Ins,MUST,A new project-specific class Z<MYCLASS> must be created and registered in table ZDCZZT20.
+23, Business Add-Ins,MUST,Class Z<MYCLASS> must be created using transaction SE24.
+24, Business Add-Ins,MUST,The project-specific class Z<MYCLASS> must be automatically called via include ZPCZZI20 based on the entry in ZDCZZT20.

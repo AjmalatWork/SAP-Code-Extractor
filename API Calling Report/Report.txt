@@ -1,0 +1,816 @@
+*&---------------------------------------------------------------------*
+*& Report zap_code_review_test3
+*&---------------------------------------------------------------------*
+*&  codereview - markup
+*&---------------------------------------------------------------------*
+REPORT zap_code_review_test3.
+
+INCLUDE zap_code_review_test3_top.
+*INCLUDE zap_prod_review_test_top.
+*INCLUDE zssu_test_prog_2_top.
+INCLUDE zap_code_review_test3_sel.
+*INCLUDE zap_prod_review_test_sel.
+*INCLUDE zssu_test_prog_2_sel.
+
+*INITIALIZATION.
+*com1 = '🆕 Review Only Latest Changes'.
+**  " Titles
+*  text-001 = '🤖 AI Input Section'.
+*  text-003 = '⚙️ Model Settings'.
+
+
+*AT SELECTION-SCREEN OUTPUT.
+*  LOOP AT SCREEN.
+*    IF screen-name = 'P_PRG' OR screen-name = 'C_REFCD' OR screen-name = 'P_TOKDET'.
+*      screen-intensified = '1'. " Highlight
+*      MODIFY SCREEN.
+*    ENDIF.
+*  ENDLOOP.
+
+
+"================================================================
+
+START-OF-SELECTION.
+
+  DATA : li_html_file TYPE gty_tt_file.
+
+  IF r_prg = 'X'.
+    PERFORM upload_file_from_desktop.
+    SELECT SINGLE name INTO @DATA(lv_dummy2)
+        FROM trdir
+        WHERE name = @p_prg.
+    IF sy-subrc = 0.
+      PERFORM extract_source_code USING p_prg.
+    ENDIF.
+
+    SELECT SINGLE ddlname INTO @DATA(lv_dummy)
+     FROM ddddlsrc
+     WHERE ddlname = @p_prg.
+    IF sy-subrc = 0.
+      PERFORM extract_cds_code USING p_prg.
+    ENDIF.
+  ENDIF.
+
+
+  IF r_class = 'X'.
+    IF NOT p_class IS INITIAL
+        AND NOT p_method IS INITIAL.
+      PERFORM extract_amdp_code USING p_class p_method.
+    ENDIF.
+  ENDIF.
+
+* Set payload
+*---------------------------------------
+
+  "file content that is required with every request
+  PERFORM format_file_content.
+
+  "all Program lines; all not required at every request. Need to divide it.
+  PERFORM format_program_lines. "chaning lv_program_lines
+
+  FIND ALL OCCURRENCES OF PCRE lv_regex "'(?s)FORM\s*(.*?)\s*ENDFORM' getting all the forms in section
+       IN lv_program_lines
+       RESULTS DATA(lt_result).
+
+  LOOP AT lt_result INTO DATA(ls_result).
+    DATA(lv_substr) = lv_program_lines+ls_result-offset(ls_result-length).
+
+*    CALL FUNCTION 'ZAP_AI_CALL'
+*      EXPORTING
+*        c_refcd  = c_refcd
+*        p_guide  = p_guide
+*        c_latest = c_latest
+*        r_class  = r_class.
+
+    DATA(lv_task) = |CALL{ sy-tabix }|.
+
+    CALL FUNCTION 'ZAP_AI_CALL'
+      STARTING NEW TASK lv_task
+      PERFORMING collect_res ON END OF TASK
+      EXPORTING
+        c_refcd         = c_refcd
+        p_guide         = p_guide
+        c_latest        = c_latest
+        r_class         = r_class
+      CHANGING
+        lv_substr       = lv_substr
+        lv_prompt       = lv_prompt
+        lv_sys_instruct = lv_sys_instruct
+        lv_payload      = lv_payload
+        lv_result_json  = lv_result_json
+        lv_file_content = lv_file_content.
+
+
+  ENDLOOP.
+
+  "---------------------------------------------------------------------
+  " rest of the program lines
+  "---------------------------------------------------------------------
+  REPLACE ALL OCCURRENCES OF PCRE lv_regex
+       IN lv_program_lines WITH space.
+
+  CALL FUNCTION 'ZAP_AI_CALL'
+    STARTING NEW TASK 'CALL'
+    PERFORMING collect_res ON END OF TASK
+    EXPORTING
+      c_refcd         = c_refcd
+      p_guide         = p_guide
+      c_latest        = c_latest
+      r_class         = r_class
+    CHANGING
+      lv_substr       = lv_substr
+      lv_prompt       = lv_prompt
+      lv_sys_instruct = lv_sys_instruct
+      lv_payload      = lv_payload
+      lv_result_json  = lv_result_json
+      lv_file_content = lv_file_content.
+
+  DESCRIBE TABLE lt_result LINES DATA(lv_calls).
+  lv_calls = lv_calls + 1.
+  WAIT UNTIL lv_calls EQ gv_num_call UP TO 360 SECONDS.
+
+  LOOP AT gt_result_json INTO lv_result_json.
+    IF p_tokdet = abap_true.
+      PERFORM show_token_details USING lv_result_json CHANGING gv_token_info.
+    ENDIF.
+
+    PERFORM calculate_results USING lv_result_json gv_token_info CHANGING li_html_file.
+  ENDLOOP.
+
+  PERFORM display_results USING li_html_file.
+
+*****************************************************************************
+* Subroutines
+*****************************************************************************
+
+*&---------------------------------------------------------------------*
+*& Form upload_file
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> GV_FILE
+*&---------------------------------------------------------------------*
+FORM upload_file  USING    p_gv_file CHANGING p_gt_records TYPE gty_tt_file.
+
+  CALL FUNCTION 'GUI_UPLOAD'
+    EXPORTING
+      filename                = p_gv_file
+      has_field_separator     = ''  "file is TAB delimited
+    TABLES
+      data_tab                = p_gt_records
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      OTHERS                  = 17.
+  IF sy-subrc NE 0.
+    WRITE: 'Error ', sy-subrc, 'returned from GUI_UPLOAD FM'.
+    SKIP.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_source_code
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_PRG
+*&---------------------------------------------------------------------*
+FORM extract_source_code  USING    p_p_prg TYPE progname.
+
+  CALL FUNCTION 'RPY_PROGRAM_READ'
+    EXPORTING
+*     LANGUAGE         = SY-LANGU
+      program_name     = p_prg
+*     WITH_INCLUDELIST = 'X'
+*     ONLY_SOURCE      = ' '
+*     ONLY_TEXTS       = ' '
+*     READ_LATEST_VERSION       = ' '
+*     WITH_LOWERCASE   = ' '
+* IMPORTING
+*     PROG_INF         =
+    TABLES
+*     INCLUDE_TAB      =
+*     SOURCE           =
+      source_extended  = gt_program_code
+*     TEXTELEMENTS     =
+    EXCEPTIONS
+      cancelled        = 1
+      not_found        = 2
+      permission_error = 3
+      OTHERS           = 4.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form display_results
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LV_RESULT_JSON
+*&---------------------------------------------------------------------*
+FORM display_results  USING lt_all_texts TYPE gty_tt_file.
+  DATA : ls_text TYPE LINE OF gty_tt_file,
+         lv_html TYPE string.
+
+
+  DATA : li_html_table TYPE TABLE OF string,
+         lw_filepath   TYPE string.
+
+  CONCATENATE
+    '<style>'
+    'table.gemini-table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; table-layout: auto; word-wrap: break-word; }'
+    'table.gemini-table th, table.gemini-table td { border: 1px solid #0072C6; padding: 8px; vertical-align: top; word-break: break-word; white-space: pre-wrap; }'
+    'table.gemini-table th { background-color: #E6F0FA; color: #0072C6; text-align: left; }'
+    '</style>'
+    '<div style="text-align:center; background:#f0f8ff; padding:10px; border-radius:8px;">'
+    '<h2 style="color:#0072C6; font-size:28px;">🧠 Quick Code Review 🤖</h2>'
+    '</div>'
+    '<table class="gemini-table">'
+    INTO lv_html.
+
+  DATA(idx) = 0.
+  LOOP AT lt_all_texts INTO ls_text.
+    REPLACE ALL OCCURRENCES OF '<' IN ls_text-line WITH '&lt;'.
+    REPLACE ALL OCCURRENCES OF '>' IN ls_text-line WITH '&gt;'.
+    CONCATENATE lv_html
+      '<tr><td></td><td><pre style="white-space: pre-wrap; word-break: break-word;">' ls_text-line '</pre></td></tr>'
+      INTO lv_html.
+    idx += 1.
+  ENDLOOP."
+  CONCATENATE lv_html '</table>' INTO lv_html.
+
+
+*  cl_demo_output=>display_html( lv_html ).
+
+  APPEND lv_html TO li_html_table.
+
+  lw_filepath = |C:\\temp\\code_review_{ sy-datum }_{ sy-uzeit }.html|.
+
+  cl_gui_frontend_services=>gui_download(
+  EXPORTING
+    filename                = lw_filepath
+  CHANGING
+    data_tab                = li_html_table
+  EXCEPTIONS
+    OTHERS                  = 1 ).
+  IF sy-subrc = 0.
+    cl_gui_frontend_services=>execute(
+    EXPORTING
+      document               = lw_filepath
+    EXCEPTIONS
+      OTHERS                 = 1 ).
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form set_prompt
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- LV_PROMPT
+*&---------------------------------------------------------------------*
+FORM set_prompt  CHANGING lv_prompt TYPE string
+                          lv_sys_instruct TYPE string.
+  DATA : lw_s1 TYPE string,
+         lw_s2 TYPE string,
+         lw_s3 TYPE string,
+         lw_s4 TYPE string,
+         lw_s5 TYPE string.
+
+  IF p_guide = 'X'.
+    CONCATENATE 'Context1:Based on the code review guidelines provided here:' lv_file_content INTO lv_p1.
+    CONCATENATE 'Context2:Do code review of provided abap code here:' lv_program_lines INTO lv_p2.
+    IF c_refcd = ''.
+      lv_p3  = 'Context3:Do not show refactored code'.
+    ELSE.
+      lv_p10 = 'Context: Perform a comprehensive review of the following ABAP report covering structure, performance, annotations, and security. Highlight best practices and areas for improvement.'.
+*      lv_p3  = 'Context3:Also show refactored code at the end. Highlight the recommended changed refactored code lines.'.
+      lv_p3  = 'Context3:At the end of your response, provide a section titled FINAL_REFACTORED_CODE. ' &&
+               'Everything inside this section must be valid ABAP code that can be directly activated. '.
+
+    ENDIF.
+    lv_p4 = 'Context4:Do not show comments which meets the guidelines. Only show comments where corrections are needed'.
+    lv_p5 = 'Context5:Comments should be concise. Only provide summary of the review comments without ABAP code'.
+    lv_p7 = 'Also provide positive test cases to test the corrections recommneded at the end'.
+  ENDIF.
+*  IF p_req = 'X'.
+*    CONCATENATE 'Context1:Based on the requirement document provided here for the change request:' lv_file_content1 INTO lv_p1.
+*    CONCATENATE 'Context2:Do code review of provided abap code here:' lv_program_lines INTO lv_p2.
+*    IF c_refcd = ''.
+*      lv_p3 =     'Context3:Do not show refactored code'.
+*    ELSE.
+*      lv_p3 =     'Context3:Also show refactored code at the end'.
+*    ENDIF.
+*    lv_p4 =     'Context4:Do not review code as per best practices'.
+*    "lv_p5 =     'Context5:Only show comments where requirements are not met'.
+*  ENDIF.
+  IF c_latest = 'X'.
+    DATA: lv_last_date TYPE trdir-udat,
+          lv_last_user TYPE trdir-unam.
+
+    SELECT SINGLE udat unam INTO (lv_last_date, lv_last_user) FROM trdir WHERE name = p_prg.
+    IF sy-subrc = 0.
+      lv_p11 = 'Context 6:Read the ABAP code header. List all requirement IDs with their dates. Find the requirement ID with the most recent date. Review only the code related to that requirement against the provided programming guidelines.'.
+      lv_p12 =  'Give specific improvement suggestions and explain each reason clearly.'.
+
+    ENDIF.
+  ENDIF.
+  IF r_class = 'X'.
+    lv_p13 = 'For this method, follow the best practices and guidelines provided in the Code Review Guidelines document.'.
+  ENDIF.
+lv_p_prompt = 'Review the ABAP code for modern syntax (inline declarations, constructor expressions, VALUE/CORRESPONDING, CDS) and HANA performance issues (row-by-row SELECTs, client-side loops, SELECT *, missing joins). Provide specific fixes with code'.
+
+  CONCATENATE '"' lv_p1 lv_p2 lv_p13 lv_p11 lv_p12 lv_p3 lv_p4 lv_p5 lv_p6 lv_p7 lv_p8 lv_p9 lv_p10 lv_p_prompt '"' INTO lv_prompt.
+
+*  System Instruction
+  lw_s1 = 'You are an expert Senior Software Engineer and Security Auditor. Your task is to perform a rigorous code review based on provided guidelines. '.
+  lw_s2 = 'CORE RESPONSIBILITIES are as follows, Evaluate the code strictly against the Review Guidelines provided in the user payload, '.
+  lw_s3 = 'Provide technical justification for the suggestions, '.
+  lw_s4 = 'Be professional, direct and constructive ' &&
+          'For SELECT-OPTIONS, you MUST declare a dummy variable to reference in the FOR addition, as SELECT-OPTIONS cannot reference a TYPE directly. ' &&
+          'For select statements, order by if used must be placed before the into clause. ' &&
+          'Always check sy subrc after a select or read statement. '  &&
+          'Ensure all necessary data declarations are included so the code is syntactically complete. ' &&
+          'Use class ZC_MSG_CLASS for message statements and give instruction as comments to message if not created' &&
+          'For every significant optimization or change, add a comment block above the line indicating which specific Guideline or Performance Rule was applied. ' &&
+          'CRITICAL: For comments, use a full-line comment by placing an asterisk at the VERY FIRST character of the line (column 1). ' &&
+          'DO NOT use double quotes for comments as it will break the JSON payload. ' &&
+          'The asterisk must NOT be preceded by any spaces or tabs and must never be indented even if it is inside another code block '.
+
+  CONCATENATE lw_s1 lw_s2 lw_s3 lw_s4 INTO lv_sys_instruct.
+
+
+ENDFORM.
+
+FORM set_prompt_new    USING lv_substr TYPE string
+                    CHANGING lv_prompt TYPE string
+                             lv_sys_instruct TYPE string.
+
+  DATA: lw_s1 TYPE string,
+        lw_s2 TYPE string,
+        lw_s3 TYPE string,
+        lw_s4 TYPE string.
+
+  DATA: lv_p1       TYPE string, " Context: Guidelines
+        lv_p2       TYPE string, " Context: Code
+        lv_p3       TYPE string, " Refactoring instructions
+        lv_p4       TYPE string, " Negative constraints
+        lv_p5       TYPE string, " Formatting/Heading instructions
+        lv_p10      TYPE string, " Quantification formulas
+        lv_p11      TYPE string, " Latest requirement logic
+        lv_p12      TYPE string, " Improvement suggestions
+        lv_p13      TYPE string, " Method best practices
+        lv_p_prompt TYPE string.
+
+
+  " 1. Define the mandatory Output Structure and Headings
+  lv_p5 = 'STRUCTURE REQUIREMENT: Your output MUST have exactly 3 sections separated by dashed lines (---): ' &&
+          '1. Quantification Points, 2. Code Review Points, 3. Refactored Code. '.
+
+  " 2. Define Quantification Metrics
+  lv_p10 = 'SECTION 1 (Quantification Points): Provide the following metrics: ' &&
+           '- A score out of 100 for clean core view (Cloud Readiness). ' &&
+           '- A score out of 100 for S/4HANA compatibility. ' &&
+           '- Technical Debt Density = (Lines of Code * Cyclomatic Complexity) / Number of Objects. ' &&
+           '- Total Number of review points found. '.
+
+  " 3. Define Code Review Point Format
+  lv_p_prompt = 'SECTION 2 (Code Review Points): Provide a numbered list. ' &&
+                'Each item must include: A Heading for the issue, an explanation, ' &&
+                'and the specific Code Snippet where it was found. '.
+
+  " 4. Define Refactored Code Section
+  IF c_refcd = 'X'.
+    lv_p3 = 'SECTION 3 (Refactored Code): Provide the complete, valid ABAP code. ' &&
+            'Include full-line comments (*) above corrected lines explaining WHAT was corrected and WHY. ' &&
+            'Ensure the code inside this section is directly activatable. '.
+  ELSE.
+    lv_p3 = 'SECTION 3 (Refactored Code): State that refactoring was not requested. '.
+  ENDIF.
+
+  " 5. Logic for Guidelines and Source Code
+  IF p_guide = 'X'.
+    CONCATENATE 'Context1: Guidelines:' lv_file_content INTO lv_p1.
+    CONCATENATE 'Context2: ABAP Code to Review:' lv_substr INTO lv_p2.
+    lv_p4 = 'Do not show comments for code that already meets guidelines. Only focus on needed corrections. '.
+  ENDIF.
+
+  " 6. Logic for Latest Requirement Date (Delta Review)
+  IF c_latest = 'X'.
+    lv_p11 = 'Context 6: Analyze the ABAP header. Identify the Requirement ID with the most recent date. ' &&
+             'Perform the review ONLY for code associated with that specific requirement ID. '.
+  ENDIF.
+
+  IF r_class = 'X'.
+    lv_p13 = 'Ensure method-specific best practices (visibility, exception handling) are followed. '.
+  ENDIF.
+
+  " Final Prompt Assembly
+  CONCATENATE lv_p5 lv_p10 lv_p_prompt lv_p3 lv_p1 lv_p2 lv_p4 lv_p11 lv_p13 INTO lv_prompt SEPARATED BY space.
+
+  " 7. System Instructions (Persona and Syntax Rules)
+  lw_s1 = 'You are an expert Senior ABAP Architect and Security Auditor. '.
+  lw_s2 = 'Evaluate code strictly against the user-provided guidelines and S/4HANA standards. '.
+  lw_s3 = 'Technical Requirements: 1. SELECT-OPTIONS must use a dummy variable for TYPE reference. ' &&
+          '2. ORDER BY must precede the INTO clause. 3. Always check sy-subrc. 4. Use ZC_MSG_CLASS for messages. '.
+  lw_s4 = 'CRITICAL FORMATTING: For comments in the Refactored Code, use an asterisk (*) at the VERY FIRST character ' &&
+          'of the line (Column 1). NEVER use double quotes (") for comments as they break JSON payloads. ' &&
+          'Do not indent the asterisk even inside loops or IF blocks. '.
+
+  CONCATENATE lw_s1 lw_s2 lw_s3 lw_s4 INTO lv_sys_instruct.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form format_program_lines
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM format_program_lines .
+  LOOP AT gt_program_code INTO gs_program_code.
+    IF gs_program_code-line+0(1) = '*'.
+      CONTINUE.
+    ENDIF.
+    SPLIT gs_program_code-line AT '"' INTO gs_program_code-line DATA(lv_dummy).
+    CONDENSE gs_program_code-line.
+    CONCATENATE lv_program_lines gs_program_code-line INTO lv_program_lines.
+
+    PERFORM escape_json_string CHANGING  gs_program_code-line.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form format_file_content
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM format_file_content .
+  IF p_guide = 'X'.
+    LOOP AT gt_file_content INTO gs_file_content.
+      IF sy-tabix = 1.
+        lv_file_content = gs_file_content-line.
+      ENDIF.
+      IF sy-tabix > 1.
+        CONCATENATE lv_file_content gs_file_content-line INTO lv_file_content.
+      ENDIF.
+    ENDLOOP.
+
+    REPLACE ALL OCCURRENCES OF '"' IN lv_file_content WITH ''.
+
+  ENDIF.
+
+  IF p_req = 'X'.
+    LOOP AT gt_file_content1 INTO gs_file_content.
+      IF sy-tabix = 1.
+        lv_file_content1 = gs_file_content-line.
+      ENDIF.
+      IF sy-tabix > 1.
+        CONCATENATE lv_file_content1 gs_file_content-line INTO lv_file_content1.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form upload_file_from_desktop
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM upload_file_from_desktop .
+
+  IF p_guide = 'X'.
+    gv_file = p_file.
+    PERFORM upload_file USING gv_file CHANGING gt_records.
+    gt_file_content[] = gt_records[].
+    REFRESH gt_records.
+  ENDIF.
+
+  IF p_req = 'X'.
+    gv_file = p_file1.
+    PERFORM upload_file USING gv_file CHANGING gt_records.
+    gt_file_content1[] = gt_records[].
+    REFRESH gt_records.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form extract_cds_code
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_PRG
+*&---------------------------------------------------------------------*
+FORM extract_cds_code  USING    p_p_prg TYPE progname.
+
+  DATA: lv_code    TYPE string,
+        lv_offset  TYPE i VALUE 0,
+        lv_len     TYPE i,
+        lv_line    TYPE abaptxt255,
+        lv_cleaned TYPE string,
+        lv_pos     TYPE i.
+
+  CLEAR gt_program_code.
+
+  " Read full CDS source
+  SELECT SINGLE source INTO @lv_code
+    FROM ddddlsrc
+    WHERE ddlname = @p_p_prg.
+
+  IF sy-subrc = 0 AND lv_code IS NOT INITIAL.
+    " Remove technical metadata (everything from /*+[internal] ... onwards)
+    FIND '/*+[' IN lv_code MATCH OFFSET lv_pos.
+    IF sy-subrc = 0.
+      lv_cleaned = lv_code+0(lv_pos). " Extract only valid code before metadata
+    ELSE.
+      lv_cleaned = lv_code.
+    ENDIF.
+
+    " Break into 255-character lines
+    WHILE lv_offset < strlen( lv_cleaned ).
+      lv_len = strlen( lv_cleaned ) - lv_offset.
+      IF lv_len > 255.
+        lv_len = 255.
+      ENDIF.
+      lv_line = lv_cleaned+lv_offset(lv_len).
+      APPEND lv_line TO gt_program_code.
+      ADD 255 TO lv_offset.
+    ENDWHILE.
+
+  ELSE.
+    MESSAGE |{ p_p_prg } not found in DDDLSRC| TYPE 'S'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form show_token_details
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM show_token_details
+  USING    iv_json          TYPE cstring
+  CHANGING ev_token_details TYPE string.
+  TYPES: BEGIN OF ty_usage,
+           prompttokencount     TYPE i,
+           thoughtstokencount   TYPE i,
+           candidatestokencount TYPE i,
+           totaltokencount      TYPE i,
+         END OF ty_usage.
+
+  TYPES: BEGIN OF ty_response,
+           usagemetadata TYPE ty_usage,
+         END OF ty_response.
+  DATA: ls_response TYPE ty_response.
+
+  TRY.
+      CALL METHOD /ui2/cl_json=>deserialize
+        EXPORTING
+          json = iv_json
+        CHANGING
+          data = ls_response.
+
+      ev_token_details = |--- Token Usage Details ---| &&
+                            cl_abap_char_utilities=>newline &&
+                            |Prompt Token Count     : { ls_response-usagemetadata-prompttokencount }| &&
+                            cl_abap_char_utilities=>newline &&
+                            |Thoughts Token Count   : { ls_response-usagemetadata-thoughtstokencount }| &&
+                            cl_abap_char_utilities=>newline &&
+                            |Candidates Token Count : { ls_response-usagemetadata-candidatestokencount }| &&
+                            cl_abap_char_utilities=>newline &&
+                            |Total Token Count      : { ls_response-usagemetadata-totaltokencount }|.
+
+    CATCH cx_root INTO DATA(lx_json).
+      ev_token_details = |Token parsing failed: { lx_json->get_text( ) }|.
+  ENDTRY.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_amdp_code
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_CLASS
+*&      --> P_METHOD
+*&      --> P_FNAME
+*&---------------------------------------------------------------------*
+FORM extract_amdp_code  USING    p_p_class
+                                 p_p_method.
+
+  DATA: lv_mtdkey TYPE seocpdkey.
+  DATA: gt_source_code TYPE seop_source_string.
+  lv_mtdkey-clsname = p_p_class.
+  lv_mtdkey-cpdname = p_p_method.
+
+  CALL FUNCTION 'SEO_METHOD_GET_SOURCE'
+    EXPORTING
+      mtdkey                        = lv_mtdkey
+      state                         = 'A'
+*     WITH_ENHANCEMENTS             = SEOX_FALSE
+    IMPORTING
+*     SOURCE                        = gt_source_code
+      source_expanded               = gt_source_code
+*     INCNAME                       =
+*     RESOLVED_METHOD_KEY           =
+    EXCEPTIONS
+      _internal_method_not_existing = 1
+      _internal_class_not_existing  = 2
+      version_not_existing          = 3
+      inactive_new                  = 4
+      inactive_deleted              = 5
+      OTHERS                        = 6.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  APPEND LINES OF gt_source_code TO gt_program_code.
+ENDFORM.
+
+FORM escape_json_string CHANGING cv_output TYPE text255.
+
+  " Order matters: escape the escape character (backslash) first
+  REPLACE ALL OCCURRENCES OF '\' IN cv_output WITH '\\'.
+
+  " Escape double quotes
+  REPLACE ALL OCCURRENCES OF '"' IN cv_output WITH '\"'.
+
+  " Escape control characters (New Line, Carriage Return, Tabs)
+  " Note: CL_ABAP_CHAR_UTILITIES provides the hex values for these
+  REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline        IN cv_output WITH '\n'.
+  REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf          IN cv_output WITH '\r\n'.
+  REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN cv_output WITH '\t'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form get_json
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LV_PROMPT
+*&      --> LV_SYS_INSTRUCT
+*&      <-- LV_PAYLOAD
+*&---------------------------------------------------------------------*
+FORM get_json  USING    pv_prompt
+                        pv_sys_instruct
+               CHANGING pv_payload.
+
+* 1. Define the nested structure matching your Gemini payload
+  TYPES: BEGIN OF ty_part,
+           text TYPE string,
+         END OF ty_part,
+         tt_parts TYPE STANDARD TABLE OF ty_part WITH EMPTY KEY.
+
+  TYPES: BEGIN OF ty_content,
+           parts TYPE tt_parts,
+           role  TYPE string, " Optional for Gemini
+         END OF ty_content,
+         tt_contents TYPE STANDARD TABLE OF ty_content WITH EMPTY KEY.
+
+  TYPES: BEGIN OF ty_gen_config,
+           stop_sequences TYPE string_table, " stopSequences in JSON
+           temperature    TYPE f,            " Maps to 0 or decimals
+         END OF ty_gen_config.
+
+  TYPES: BEGIN OF ty_system_instruction,
+           parts TYPE tt_parts,
+         END OF ty_system_instruction.
+
+  TYPES: BEGIN OF ty_gemini_payload,
+           system_instruction TYPE ty_system_instruction, " systemInstruction
+           contents           TYPE tt_contents,
+           generation_config  TYPE ty_gen_config,        " generationConfig
+         END OF ty_gemini_payload.
+
+  DATA: ls_payload TYPE ty_gemini_payload,
+        lv_json    TYPE string.
+
+* ---------------------------------------------------------
+* 2. FILL INTERNAL STRUCTURE (ABAP -> JSON)
+* ---------------------------------------------------------
+  ls_payload-system_instruction-parts = VALUE #( ( text = pv_sys_instruct ) ).
+  ls_payload-contents = VALUE #( ( parts = VALUE #( ( text = pv_prompt ) ) ) ).
+  ls_payload-generation_config = VALUE #(
+      stop_sequences = VALUE #( ( `Title` ) )
+      temperature    = '0.0'
+  ).
+
+* Serialize: Convert ABAP structure to CamelCase JSON
+  pv_payload = /ui2/cl_json=>serialize(
+              data        = ls_payload
+              pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form calculate_results
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LV_RESULT_JSON
+*&      --> GV_TOKEN_INFO
+*&      <-- LI_HTML_FILE
+*&---------------------------------------------------------------------*
+FORM calculate_results  USING    p_lv_result_json
+                                 p_gv_token_info
+                        CHANGING pi_html_file TYPE gty_tt_file.
+
+  DATA: ls_html_file TYPE LINE OF gty_tt_file.
+
+  /ui2/cl_json=>deserialize(
+    EXPORTING
+        json = lv_result_json
+        pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+    CHANGING
+        data = lr_data ).
+
+  CHECK lr_data IS BOUND.
+  ASSIGN lr_data->* TO FIELD-SYMBOL(<data>).
+  CHECK <data> IS ASSIGNED.
+
+  ASSIGN COMPONENT 'MODEL_VERSION' OF STRUCTURE <data> TO FIELD-SYMBOL(<lf_model>).
+  CHECK <lf_model> IS ASSIGNED.
+  ASSIGN <lf_model>->* TO <lv_model>.
+
+  ASSIGN COMPONENT 'CANDIDATES' OF STRUCTURE <data> TO FIELD-SYMBOL(<lf_r_candidates>).
+  CHECK <lf_r_candidates> IS ASSIGNED.
+  ASSIGN <lf_r_candidates>->* TO <lt_candidates>.
+  CHECK <lt_candidates> IS ASSIGNED.
+
+  LOOP AT <lt_candidates> ASSIGNING FIELD-SYMBOL(<lf_candidates>).
+    ASSIGN <lf_candidates>->* TO <data>.
+    CHECK <data> IS ASSIGNED.
+    ASSIGN COMPONENT 'CONTENT' OF STRUCTURE <data> TO FIELD-SYMBOL(<lf_r_content>).
+    ASSIGN <lf_r_content>->* TO <lf_r_content>.
+
+    CHECK <lf_r_content> IS ASSIGNED.
+    ASSIGN COMPONENT 'PARTS' OF STRUCTURE <lf_r_content> TO FIELD-SYMBOL(<lf_ir_parts>).
+
+    LOOP AT <lf_ir_parts>->* ASSIGNING FIELD-SYMBOL(<fs_parts>).
+      ASSIGN COMPONENT 'TEXT' OF STRUCTURE <fs_parts>->* TO FIELD-SYMBOL(<lf_o_text>).
+      ASSIGN <lf_o_text>->* TO FIELD-SYMBOL(<lf_text>).
+      ls_html_file-line = <lf_text>.
+      APPEND ls_html_file TO pi_html_file.
+      CLEAR ls_html_file.
+    ENDLOOP.
+  ENDLOOP.
+
+*  Appending the token details to the responce
+  IF gv_token_info IS NOT INITIAL.
+    ls_html_file-line =  |<div style="margin-top:20px; padding:10px; border:1px solid #ccc; background-color:#f9f9f9;">| &&
+                       |<h3 style="color:#0072C6;">🔢 Token Usage Details</h3>| &&
+                       |<pre style="white-space: pre-wrap;">{ gv_token_info }</pre>| &&
+                       |</div>|.
+    APPEND ls_html_file TO pi_html_file.
+    CLEAR ls_html_file.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form collect_res
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+FORM collect_res USING lw_task TYPE clike.
+
+  RECEIVE RESULTS FROM FUNCTION 'ZAP_AI_CALL'
+      CHANGING
+        lv_substr             = lv_substr
+        lv_prompt             = lv_prompt
+        lv_sys_instruct       = lv_sys_instruct
+        lv_payload            = lv_payload
+        lo_client             = lo_client
+        lv_result_json        = lv_result_json
+        lv_file_content       = lv_file_content.
+
+
+  APPEND lv_result_json TO gt_result_json.
+
+  ADD 1 TO gv_num_call.
+
+ENDFORM.

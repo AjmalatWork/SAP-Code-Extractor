@@ -1,0 +1,8 @@
+S. No.,Rule,Tag,Rule Content,
+1,environment data,MUST,Local PC environment data must be retrieved using CL_GUI_FRONTEND_SERVICES and should not be hardcoded.,
+2,"Constant, hard coding and text element",MUST,Constants must be declared with CONSTANTS or externalized in customizing tables; hardcoding is not allowed,
+3,"Constant, hard coding and text element",MUST,"Constants must have meaningful names (not the value itself), and composite constants should be preferred whenever possible.",
+4, Obsolete functions,MUST NOT,Obsolete SAP function modules must not be used.,
+5,Syntax checks and code inspector,MUST NOT,New programs must not have any errors or warnings in usual syntax checks.,
+6,Subroutines,MUST NOT,"Since version 7.31, FORM / ENDFORM subroutines are obsolete and must not be used in new programs. Local classes should be used instead, and for existing programs, new functionality should be implemented in local classes with migration of old functionality when possible",
+7,Dynamic SQL,MUST,"Dynamic SQL only be used when the aircraft program is specified in the table name, and you must always check that the variables used are not empty.",

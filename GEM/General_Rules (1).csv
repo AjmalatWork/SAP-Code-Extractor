@@ -1,0 +1,16 @@
+S.No.,Rule,Tag,Rule Contents
+1,Usage of Standard Routines,MUST NOT,Calls to SAP standard subroutines (FORM routines) must not be performed
+2,Language,MUST,"All development, including descriptions and comments, must be written in English."
+3,Data Validation,MUST,All variables declared in ABAP must be explicitly typed.
+4,Data Validation,MUST,Input parameters must use appropriate data elements.
+5,Data Validation,MUST,All selection-screen parameters and select-options must be typed.
+6,Data Validation,MUST NOT,"Free text types (such as STRING, BLOB, or long string types) must not be used for anything other than comments."
+7,Error Handling,MUST NOT,The error-handling section must not be empty and must contain appropriate error-handling logic.
+8,Error Handling,MUST,"Any caught exception must be either propagated to the caller (program, function, class) or handled appropriately."
+9,Error Handling,MUST NOT,"Custom error pages must not disclose applicative or infrastructure details, such as stack traces or technical dumps."
+10,Error Handling,MUST,Errors must be translated into understandable and user-friendly messages for end users.
+11,Error Handling,MUST,Exception return codes (SY-SUBRC) must be checked when calling function modules or BAPIs that define exceptions.
+12,Error Handling,MUST,Errors raised by class methods must be handled using TRY/CATCH blocks.
+13,Error Handling,MUST NOT,The exception class CX_ROOT must not be used.
+14,Error Handling,MUST,RFC standard exceptions such as SYSTEM_FAILURE and COMMUNICATION_FAILURE must be explicitly used and handled.
+15,Error Handling,SHOULD ,New function modules or class methods should use exceptions as required.

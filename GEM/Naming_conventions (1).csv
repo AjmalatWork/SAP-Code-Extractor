@@ -1,0 +1,236 @@
+GENERAL: ,,,
+1- In the following codification XX are the 2 first digits of the project's code. ,,,
+"2- For transverse developments those 2 digits are = ""ZZ"" ",,,
+3-These naming conventions are not case-sensitive,,,
+,,,
+,,,
+,Naming Rule,Example,
+1. ABAP Workbench components (External naming convention),ZZXX*,ZZ8D,
+Object Type,ZZ8D_AUTHORING,,
+Package (Development Class),ZPR21,,
+Authoring Package,,,
+"Special transverse package for APPENDs, User-Exits, etc.",,,
+DICTIONARY,Object Type,Naming Rule,Example
+ID,Table,ZDCXXT*,ZDCA6T_DIFF_VARI
+DICO-001,Data Element,ZXX*,Z2F_COUNTRY
+DICO-002,Parameter ID (SET/GET),ZXX*,Z8D_CMS_DISPLAY_MESS
+DICO-003,Domain,Z*,ZCOUNTRY
+DICO-004,Table Type,ZDCXXI*,ZDC2FI_T_S_MFRPN
+DICO-005,Type Group (Type Pool),ZXX*,Z8DPM
+DICO-006,View,ZDCXXV*,ZDCG1V_FS_INV_2
+DICO-007,Structure,ZDCXXS*,ZDC8DSTUB_MSG
+DICO-008,Collective Search Help,ZC*,ZCB7_DISCR_KEY
+DICO-009,Elementary Search Help,If part of a collective search help: <CollectiveSearchHelp>NN (NN = 2-digit numeric suffix); otherwise ZC*,ZC8I01
+DICO-010,Append Search Help,ZA<CollectiveSearchHelp>,ZAMATCSP1
+DICO-011,Lock Object,EZ<TableName> or E<TableName>,EZDCB7D_JOB_PAR
+DICO-012,,,
+Programs,Object Type,Naming Rule,Example
+ID,Program Name,ZPCXX<type>*,ZPC8DR07
+PROG-001,Type Codes,"B = Batch Input, R = Report, T = Transaction (Module Pool), I = Include, Z = Other",
+,Variant Name for Standard Program,ZCXX*,
+PROG-002,Program Status,Free,
+PROG-003,Dynpros (Specific Programs),9000 - 9999,
+PROG-004,Dynpros (SAP Standard Programs),9500 - 9999,
+PROG-005,Transaction Code,ZC*,ZCAOT_ACKNOWLDG_DIS
+PROG-006,Area Menu,ZC*,ZCSP_MADAMEI
+PROG-007,Logical Database,ZCXX_*,ZCF0_QNQ
+PROG-008,Message Class,ZCXX*,ZCA6_MESS_IPC_MF
+PROG-009,,,
+Function Group,Object Type,Naming Rule,Example
+ID,Function Group,ZCXX_*,ZC2F_FIMS
+FUNC-001,Function Module,Z_CXX_*,Z_CG1_PURGE_EXTRACT_005
+FUNC-002,,,
+Class Library,Object Type,Naming Rule,Example
+ID,Class,ZCL_CXX*,ZCL_CSR_IDENT_WORKFLOW
+CLAS-001,Interface,ZIF_CXX*,
+CLAS-002,,,
+Web Dynpro,Object Type,Naming Rule,Example
+ID,Component / Interface,ZXX<type>*,
+WD4A-001,Type Codes,"C = Web Dynpro Component, I = Web Dynpro Interface",
+,Application,ZXX*,
+WD4A-002,,,
+User Exit,Object Type,Naming Rule,Example
+ID,Project (CMOD Extension),PROJ_<SAP Module>,PROJ_PM
+EXIT-001,BAdI Implementation (Single Use),Z<BADI>,
+EXIT-002,Rule,<BADI> = BAdI definition name (truncate if too long),
+,BAdI Implementation (Multiple Use),ZXX<BADI>,
+EXIT-003,Rule,<BADI> = BAdI definition name (truncate if too long),
+,Generated Class for BAdI Implementation,ZCL_IM_<BADI>,
+EXIT-004,Rule,Generated name must not be changed,
+,,,
+SAPscript,Object Type,Naming Rule,Example
+ID,Standard Text,Z*,
+FORM-001,Style Sheet,Z*,
+FORM-002,Form & Smart Forms,ZSCXX*,
+FORM-003,Text Object,Z*,
+FORM-004,Text ID,ZXX*,
+FORM-005,,,
+Other,Object Type,Naming Rule,Example
+ID,Authorization Object,Z*,
+GENE-002,NON-BUG_FIXING Transport order,"  XXXX – YYY – First character of the first name 
+followed by the name or sign of the person 
+responsible  – Free text  
+ 
+        XXXX:  project code on four digits. 
+        YYY: CUS for customizing, WB for workbench, REP 
+for repair. 
+ 
+        Exceptions:  
+        NOTE – Free text for oss note transport orders 
+        AUTH – Free text for authorization transport orders 
+        OPER – Free text for OITO transport orders 
+        TEST – Free text for test transport orders 
+        HP- Free text for HP transport orders ","Remarks: 
+• The control made on the description is 
+not case sensitive 
+• The hyphen “-” is mandatory but not 
+the space 
+• If PCRs (Product Change Requests) 
+are used, it is strongly recommended 
+to write the number of the PCR on the 
+free text. 
+ 
+Example: 
+8D01 - WB - ADV - V400-TDCR74 domain 
+category"
+GENE-003,BUG_FIXING Transport order ,"XXXX – YYY – QCnnnnnn – First character of the first 
+name followed by the name or sign of the person 
+responsible  – Free text  
+ 
+        XXXX:  project code on four digits. 
+        YYY: CUS for customizing, WB for workbench, REP 
+for repair. 
+       nnnnnn: incident number within Quality Center 
+tool.  
+ 
+        Exceptions:  
+        NOTE – Free text for oss note transport orders 
+        AUTH – Free text for authorization transport orders 
+        OPER – Free text for OITO transport orders 
+        TEST – Free text for test transport orders 
+        HP- Free text for HP transport orders","Remarks: 
+• The control made on the description is 
+not case sensitive 
+• The hyphen “-” is mandatory but not 
+the space 
+• The CTS project DCS_P00034 
+BUG_FIXING) is mandatory. 
+ 
+ 
+Example: 
+SP01 - WB – QC1234456 - CB – part 
+management error"
+GENE-004,,,
+,,,
+2. ABAP Developments (Internal naming convention),GENERAL: ,"In some cases, the convention depends on the carrying distance. If the data is local, for instance inside a 
+FORM, L prefixes the declaration. If the data is global, for instance inside a TOP include of a function 
+group or before a START-OF-SELECTION command, G prefixes the declaration. ",
+ABAP-001,Program header ,"Use the template (see appendix) and fill: - The description - The creation date - The author  - The Reference document(s) = SAP analysis. Versions corresponding to the last modifications in the 
+code - Modification historics = Date of the modification / Author / VYY-NN <Free>  
+       - YY = applicative version (example: Version 2.1 YY=21) 
+       - NN = sequential number for each modification (example NN = 01). 
+       - <Free>:  describe the modifications, precise the Ref PCR, MCO if there's some one ",
+ABAP-002,,,
+Data Decleration,Parameter,P_*,PARAMETERS p_qmnum TYPE qmnum
+ABAP-003,Select Option,S_*,SELECT-OPTIONS s_qmel
+ABAP-004,Range,R_*,r_matnr
+ABAP-005,Constant,K_*,k_qmart
+ABAP-006,Local variable,LW_*,lw_field
+ABAP-007,Global variable,GW_*,gw_notif
+ABAP-007,Local Object,LO_*,lo_obj
+ABAP-008,Global Object,GO_*,go_gui
+ABAP-008,Local Structure,LS_*,ls_qmel
+ABAP-009,Global Structure,GS_*,gs_qmel
+ABAP-009,Local Internal Table,LI_*,li_qmel
+ABAP-010,Global Internal Table,GI_*,gi_qmel
+ABAP-010,Type,T_*/TW_*/TS_*/TI_*/TO_*,ti_notif
+ABAP-011,FORM Variable,PW_*,pw_doknr
+ABAP-012,FORM Structure,PS_*,ps_data
+ABAP-012,FORM Table,PI_*,pi_doc
+ABAP-012,FORM Object,PO_*,po_object
+ABAP-012,Field Symbol,FS_*,<fs>
+ABAP-013,FM Import Variable,IW*,IW_PARAM
+ABAP-014,FM Import Structure,IS*,IS_VIQMEL
+ABAP-014,FM Export Variable,EW*,EW_RESULT
+ABAP-014,FM Export Structure,ES*,ES_DATA
+ABAP-014,Program modifications,"Additional lines: - 1 or 2 lines: tag code at the end of the line(s) 
+                >  ""+VYY-NNNNN (VYY-NNNNN as in the program Header) 
+        Delete of lines: 
+                >  ""-VXX-NNNNN 
+ - More than 2 lines: tag code at the begining and at the end of the paragraph  
+                * INS Begin of VYY-NNNNN  
+                       Insert the code..... 
+                * INS End of VYY-NNNNN 
+ 
+          Delete of lines :  
+                * DEL Begin of VXX-NNNNN (VXX-NNNNN with reference in the program header) 
+                      Put the code in comment 
+                * DEL End of VXX-NNNNN ",
+ABAP-015,,,
+Variant variable management ,Variable name in the table TVARVC,ZXX_*,Example: Z8I_FTP_FREMOTE_VENDOR
+ABAP-016,,,
+,,,
+,,,
+3. Structure of an ABAP program,GENERAL,Structure,
+REPT-001,Modlog,"*------------------------------------------------------------------------*
+
+* Description:                          *
+
+*------------------------------------------------------------------------*
+
+* Date of creation  :   / Author:                                        *
+
+*------------------------------------------------------------------------*
+
+*                History of modifications                                *
+
+*                                                                        *
+
+* Date     / User Name / Description of the modification                 *
+
+* Description:                                                           *
+
+*------------------------------------------------------------------------*
+
+* JJ/MM/AA / ST99999 / DCSK999999 / PCR-999-XXXXXXXXXXX          *
+
+* Description:XXXXXXXXXXXX           *
+
+*------------------------------------------------------------------------*",
+REPT-002,Program Structure,"REPORT ZREPORTNAME
+
+| LINE-SIZE for report with useful output (for job by example)
+
+| MESSAGE-ID to centralize message class.
+
+includes declarations *mandatory the include MUST exist
+
+- include for top elements
+
+- include for selection screen
+
+- include for local class definition
+
+
+
+INITIALIZATION.
+
+Data initialization, setting of status .
+
+
+
+AT SELECTION-SCREEN.
+
+Checks of the selection screen
+
+
+
+START-OF-SELECTION *mandatory in case of selection screen
+
+Skeleton of the program
+
+call method of local class
+
+
+
+If nothing is mentioned, no exceptions are authorized.",

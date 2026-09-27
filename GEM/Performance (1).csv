@@ -1,0 +1,31 @@
+S.No.,Rule,Tag,Rule Content
+1,WAIT UP TO,SHOULD NOT,WAIT UP TO' should be avoided and used only where it is explicitly required for queue management scenarios.
+2,SELECT / ENDSELECT.,MUST,NO Nested SQL statements must be used
+3,SELECT / ENDSELECT.,MUST NOT,"No, EXIT or CHECK statements be used between SELECT and ENDSELECT."
+4,Index usage,SHOULD NOT,Negative conditions not to be used  because they disabled usage of the index
+5,Memory Management,MUST,"Field symbols always be checked for assignment before use and explicitly unassigned with UNASSIGN when no longer needed, as using CLEAR can be unsafe (see rule SECU-010 for shared memory)."
+6,SQL Optimization,MUST,"Use aggregation functions (MIN, MAX, COUNT, etc.) with GROUP BY instead of SELECT / ENDSELECT. This lets the database do the calculation efficiently and improves performance significantly (up to 700%)."
+7,SQL Optimization,MUST,"If only some fields are required, select only those fields instead of all columns.
+This improves performance and reduces memory usage."
+8,SQL Optimization,MUST,"SELECT SINGLE must be used only when the full primary key is specified; otherwise, SELECT UP TO 1 ROWS must be used, even though SELECT SINGLE is approximately 10% more efficient."
+9,JOIN vs FOR ALL ENTRIES vs nested SELECT,MUST,Join (or view) are more efficient than nested select ( between 200 and 300%). As redundant data can appear in the result (in case of 1:N cardinality) a restrictive list of field MUST be specified in the selected fields ( ie : you MUST NOT use SELECT * FROM …)
+10,HANA Optimization,MUST,"On SAP HANA (SoH/S4), result set ordering is not guaranteed; therefore, every SELECT statement must explicitly specify an ORDER BY clause."
+11,HANA Optimization,SHOULD ,FOR ALL ENTRIES has poor performance characteristics and should be avoided in favor of JOIN or RANGE-based selections.
+12,Internal table parsing,SHOULD ,"Whenever possible, SORTED or HASHED internal tables should be used, or appropriate DEFAULT/SECONDARY keys should be defined to ensure optimal performance."
+13,Internal table parsing,MUST,"For BINARY SEARCH, the internal table must be sorted according to the fields specified in the search condition"
+14,Database Field Selection,MUST NOT,"Use SELECT * in database queries. Always retrieve only the required fields to minimize database load, memory consumption, and network traffic."
+15,Result Set Ordering,SHOULD,Use ORDER BY in SELECT statements whenever the sequence of retrieved records is relevant to program logic or subsequent processing.
+16,Key-Based Selection,MUST,Use appropriate primary or secondary key fields in the WHERE clause to avoid full table scans and improve database performance.
+17,Data Retrieval Structure,SHOULD NOT,Use INTO CORRESPONDING FIELDS OF for large-volume data retrieval. Prefer direct mapping into appropriately typed internal tables (TABLE OF).
+18,Access to Pooled/Cluster Tables,MUST NOT,"Perform direct SELECT statements on pooled or cluster tables. Use SAP standard Function Modules, APIs, or provided access methods."
+19,FOR ALL ENTRIES Optimization,SHOULD,"Prefer database JOINs over FOR ALL ENTRIES. When FOR ALL ENTRIES is required, use suitable RANGES and packet processing while considering SAP limitations for high-volume selections."
+20,Database Access in Loops,MUST NOT,"Perform repeated database access to the same table within loops, such as executing SELECT statements inside LOOP, DO, or WHILE constructs."
+21,Database Result Validation,MUST,"Use SY-SUBRC to validate the result of database operations. Do not rely on SY-DBCNT, IS INITIAL, or IS ASSIGNED immediately after a database SELECT."
+22,Safe Database Modification,MUST,"Perform initial and validation checks before executing any UPDATE, MODIFY, or DELETE operation on database tables to prevent unintended data changes."
+23,Return Code Validation,MUST,"Check SY-SUBRC after database operations (SELECT, INSERT, UPDATE, DELETE, MODIFY), READ TABLE, file interface operations (OPEN DATASET, READ DATASET), ASSIGN, and CALL FUNCTION statements."
+24,Efficient Table Search,SHOULD,Sort internal tables before performing multiple reads and use BINARY SEARCH where applicable to improve lookup performance.
+25,Nested Loop Optimization,SHOULD NOT,"Use nested loops on large datasets. Prefer techniques such as Parallel Cursor, Hashed Tables, or Sorted Tables for efficient processing."
+26,Standard Table Usage,SHOULD,"Use Standard Tables when frequent insertions, deletions, or modifications of key fields are expected."
+27,Sorted Table Usage,SHOULD,Use Sorted Tables when the primary access pattern involves frequent reads using sorted or key-based access.
+28,Hashed Table Usage,SHOULD,"Use Hashed Tables when unique key-based access is required, particularly for master data, configuration data, or lookup-intensive scenarios."
+29,Performance-Oriented Design,MUST,"Design, develop, and test programs considering expected production data volumes, input volumes, and output volumes to ensure acceptable runtime performance."
