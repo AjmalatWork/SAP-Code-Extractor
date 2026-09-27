@@ -119,12 +119,13 @@ FUNCTION zcr_ai_code_review.
   "=====================================================================
   " 2. Load the rule knowledge base (all CSVs in IV_KB_DIR) once
   "=====================================================================
-  DATA: lt_dir_files    TYPE filetable,
-        ls_dir_file     TYPE file_table,
-        lv_kb_count     TYPE i,
-        lv_csv_filename TYPE string,
-        lt_csv_lines    TYPE string_table,
-        lv_csv_line     TYPE string.
+  DATA: lt_dir_files      TYPE filetable,
+        ls_dir_file       TYPE file_table,
+        lv_kb_count       TYPE i,
+        lv_kb_files_loaded TYPE i,
+        lv_csv_filename   TYPE string,
+        lt_csv_lines      TYPE string_table,
+        lv_csv_line       TYPE string.
 
   CALL METHOD cl_gui_frontend_services=>directory_list_files
     EXPORTING
@@ -151,12 +152,23 @@ FUNCTION zcr_ai_code_review.
       CONTINUE.
     ENDIF.
 
+    lv_kb_files_loaded = lv_kb_files_loaded + 1.
     lv_kb_text = lv_kb_text && cl_abap_char_utilities=>newline &&
                  '=== ' && ls_dir_file-filename && ' ===' && cl_abap_char_utilities=>newline.
     LOOP AT lt_csv_lines INTO lv_csv_line.
       lv_kb_text = lv_kb_text && lv_csv_line && cl_abap_char_utilities=>newline.
     ENDLOOP.
   ENDLOOP.
+
+  " With no rules loaded, every chunk call would legitimately come back
+  " with zero findings ("KB is the only source of truth") no matter how
+  " bad the code is - that's indistinguishable from "code is fine" unless
+  " this is caught up front instead of silently burning API calls.
+  IF lv_kb_files_loaded = 0.
+    ev_message = |AI review aborted - no .csv rule files found in { iv_kb_dir }. | &&
+                 |Check P_KBDIR points to the folder holding the 9 GEM rule CSVs on this PC.|.
+    RETURN.
+  ENDIF.
 
   "=====================================================================
   " 3. System instruction - condensed from the Step 2 GEM. The hard-stop
@@ -324,8 +336,9 @@ FUNCTION zcr_ai_code_review.
 
   IF sy-subrc = 0.
     DATA(lv_error_note) = COND string( WHEN lv_errors > 0 THEN |, { lv_errors } chunk(s) failed| ELSE '' ).
-    ev_message = |AI review done - { lv_objects_done } object(s), { lv_chunks_done } chunk(s), | &&
-                 |{ lv_findings_done } finding(s){ lv_error_note }. Written to { iv_review_path }|.
+    ev_message = |AI review done - { lv_kb_files_loaded } rule file(s) loaded, { lv_objects_done } object(s), | &&
+                 |{ lv_chunks_done } chunk(s), { lv_findings_done } finding(s){ lv_error_note }. | &&
+                 |Written to { iv_review_path }|.
   ELSE.
     ev_message = |AI review finished but the TSV could not be written to { iv_review_path }|.
   ENDIF.
