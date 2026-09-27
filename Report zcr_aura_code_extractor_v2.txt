@@ -1,12 +1,11 @@
 REPORT zcr_aura_code_extractor_v2.
 
-* V2 of ZCR_AURA_CODE_EXTRACTOR. Same extraction flow, unchanged - this
-* only adds an optional AI code review step (direct Gemini API call,
-* Step 2 GEM rules) that runs after the extract file is written, so the
-* original report and its includes stay untouched. See block B4 on the
-* selection screen (P_AIREV) and MAIN. New logic lives in FUNCTION
-* ZCR_AI_CODE_REVIEW - its rule knowledge base is embedded there, not
-* read from a folder, so there is no KB-folder parameter here.
+* V2 of ZCR_AURA_CODE_EXTRACTOR. Extraction flow is unchanged, but the
+* extract is never downloaded to disk here - MAIN always hands GT_OUTPUT
+* straight to the direct-API AI review (Gemini call, Step 2 GEM rules)
+* instead. The original report and its includes stay untouched; new
+* logic lives in FUNCTION ZCR_AI_CODE_REVIEW, whose rule knowledge base
+* is embedded there, not read from a folder.
 
 INCLUDE zcr_aura_code_extractor_top.
 INCLUDE zcr_aura_code_extractor_sel_v2.
@@ -149,14 +148,10 @@ FORM main.
   " proceed if the ALV review screen (9000) wasn't cancelled there.
   CHECK gv_multi_cancelled = abap_false.
 
-  IF p_airev = abap_true.
-    " Skip the extract download entirely and review GT_OUTPUT directly -
-    " P_AIREV means "I only want the AI review", not "download, then
-    " also review".
-    PERFORM run_ai_code_review.
-  ELSE.
-    PERFORM download_output_file.
-  ENDIF.
+  " V2 always reviews GT_OUTPUT directly - the extract is never
+  " downloaded to disk here (that's still what the original,
+  " untouched ZCR_AURA_CODE_EXTRACTOR is for).
+  PERFORM run_ai_code_review.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1233,90 +1228,12 @@ FORM extract_changed_blocks USING it_unified TYPE tt_unified.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*&      Form  CONFIRM_OVERWRITE_IF_EXISTS
-*&---------------------------------------------------------------------*
-*       If GV_FULL_PATH already exists on the frontend, asks the user
-*       to confirm before it gets overwritten. CV_PROCEED stays TRUE
-*       whenever the file doesn't exist yet, or the user confirms.
-*&---------------------------------------------------------------------*
-FORM confirm_overwrite_if_exists CHANGING cv_proceed TYPE abap_bool.
-  DATA: lv_exists TYPE abap_bool,
-        lv_answer TYPE c LENGTH 1.
-
-  cv_proceed = abap_true.
-
-  cl_gui_frontend_services=>file_exist(
-    EXPORTING
-      file   = gv_full_path
-    RECEIVING
-      result = lv_exists
-    EXCEPTIONS
-      OTHERS = 1 ).
-
-  " Can't tell whether the file is there - let the download go ahead
-  " and GUI_DOWNLOAD report any real problem.
-  IF sy-subrc <> 0.
-    RETURN.
-  ENDIF.
-
-  CHECK lv_exists = abap_true.
-
-  CALL FUNCTION 'POPUP_TO_CONFIRM'
-    EXPORTING
-      titlebar       = 'File Already Exists'
-      text_question  = |{ gv_full_path } already exists. Overwrite it?|
-      text_button_1  = 'Yes'
-      text_button_2  = 'No'
-      default_button = '2'
-    IMPORTING
-      answer         = lv_answer
-    EXCEPTIONS
-      text_not_found = 1
-      OTHERS         = 2.
-
-  " The file exists and the user couldn't be asked - don't overwrite.
-  IF sy-subrc <> 0 OR lv_answer <> '1'.
-    cv_proceed = abap_false.
-  ENDIF.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
-*&      Form  DOWNLOAD_OUTPUT_FILE
-*&---------------------------------------------------------------------*
-FORM download_output_file.
-  DATA lv_proceed TYPE abap_bool.
-
-  PERFORM confirm_overwrite_if_exists CHANGING lv_proceed.
-  IF lv_proceed = abap_false.
-    WRITE: / 'Download cancelled - existing file was not overwritten.'.
-    RETURN.
-  ENDIF.
-
-  CALL FUNCTION 'GUI_DOWNLOAD'
-    EXPORTING
-      filename         = gv_full_path
-      filetype         = 'ASC'
-    TABLES
-      data_tab         = gt_output
-    EXCEPTIONS
-      file_write_error = 1
-      OTHERS           = 2.
-
-  IF sy-subrc = 0.
-    WRITE: / 'File successfully downloaded to:', gv_full_path.
-  ELSE.
-    WRITE: / 'Error downloading file. Check if the file path is valid.'.
-  ENDIF.
-ENDFORM.
-
-*&---------------------------------------------------------------------*
 *&      Form  RUN_AI_CODE_REVIEW
 *&---------------------------------------------------------------------*
-*       Hands GT_OUTPUT straight to the AI review FM - no extract file
-*       is written to disk when this runs (see MAIN: P_AIREV = 'X' skips
-*       DOWNLOAD_OUTPUT_FILE entirely). GV_FULL_PATH is still set to
-*       "<folder>\CODE_EXTRACT_..._<METHOD>.TXT" by DETERMINE_ALV_OUTPUT_PATH
-*       regardless, so the review file is named after it either way.
+*       Hands GT_OUTPUT straight to the AI review FM - the extract is
+*       never written to disk in V2 (see MAIN). GV_FULL_PATH is still
+*       set to "<folder>\CODE_EXTRACT_..._<METHOD>.TXT" by
+*       DETERMINE_ALV_OUTPUT_PATH, and the review file is named after it.
 *&---------------------------------------------------------------------*
 FORM run_ai_code_review.
   DATA: lt_lines       TYPE string_table,

@@ -2,10 +2,13 @@
 *&  Include           ZCR_AURA_CODE_EXTRACTOR_SEL_V2
 *&---------------------------------------------------------------------*
 *       Selection screen for ZCR_AURA_CODE_EXTRACTOR_V2. Same as the
-*       original SEL include, plus block B4 for the direct-API AI
-*       review that runs after the extract file is written. The
-*       SELECT-OPTIONS reference the GV_*_DUMMY fields declared in the
-*       TOP include, so this has to be included after it.
+*       original SEL include - V2 always runs the direct-API AI review
+*       (see MAIN) after extraction, no on/off switch. P_FILE is still
+*       the output folder: it's where the review TSV gets written, via
+*       GV_FULL_PATH, even though the extract itself is never
+*       downloaded here. The SELECT-OPTIONS reference the GV_*_DUMMY
+*       fields declared in the TOP include, so this has to be included
+*       after it.
 *&---------------------------------------------------------------------*
 
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
@@ -29,7 +32,3 @@ PARAMETERS: rb_bloc RADIOBUTTON GROUP grp2 DEFAULT 'X' USER-COMMAND ucomm,
             rb_diff RADIOBUTTON GROUP grp2,
             rb_full RADIOBUTTON GROUP grp2.
 SELECTION-SCREEN END OF BLOCK b3.
-
-SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-004.
-PARAMETERS: p_airev  AS CHECKBOX DEFAULT 'X' ##NO_TEXT.
-SELECTION-SCREEN END OF BLOCK b4.
