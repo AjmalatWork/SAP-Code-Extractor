@@ -133,13 +133,13 @@ FUNCTION zcr_ai_code_review.
     ( |=== Architecture_Design_Rules (2).csv ===| )
     ( |S.No.,Rule,Tag,Rule content\n1,Code Length,MUST NOT,The number of lines between FORM and ENDFORM must not exceed 500.\n2,Displayed Lines,MUST NOT,"Programs must not retrieve and display more than 20,0| &&
       |00 lines."\n3,Batch Input,SHOULD NOT,Batch input programs should not be used.\n4,Batch Input,SHOULD ,A BAPI-based solution should be used in priority.\n5,Search help,MUST,Search help must be used for | &&
-      |all select-options and parameters when a unique list of values exists.\n6,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last| &&
-      | resort.",MUST,All object updates must be synchronized when a transactional treatment updates multiple tables without native lock management.\n7,"Concurrent access management\nStep 2 -  A specific s| &&
+      |all select-options and parameters when a unique list of values exists.\n6,"Concurrent access management\nStep 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last| &&
+      | resort.",MUST,All object updates must be synchronized when a transactional treatment updates multiple tables without native lock management.\n7,"Concurrent access management\nStep 2 –  A specific s| &&
       |olution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Access by other users must be prevented during the create or update process.\n8,"Concurrent access management\nSte| &&
-      |p 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All identified objects must be locked using lock object functions before any update.\n9,"Conc| &&
-      |urrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,"If any required object is already locked, all updates must be s| &&
-      |topped or failed."\n10,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Objects must be created or updated o| &&
-      |nly after all locks are successfully acquired.\n11,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All lock| &&
+      |p 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All identified objects must be locked using lock object functions before any update.\n9,"Conc| &&
+      |urrent access management\nStep 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,"If any required object is already locked, all updates must be s| &&
+      |topped or failed."\n10,"Concurrent access management\nStep 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Objects must be created or updated o| &&
+      |nly after all locks are successfully acquired.\n11,"Concurrent access management\nStep 2 –  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All lock| &&
       |ed objects must be unlocked after processing is completed.\n12,Range number,MUST,Standard number ranges (transaction SNRO) must be used when a specification defines an increment field without describi| &&
       |ng the technical method to determine the next value.\n13,File Handling,MUST,Logical filenames must be used when a filename is provided by the user.\n14,File Handling,MUST,Special characters must be re| &&
       |moved from user-provided filenames before use.\n15,File Handling,MUST,Filename and path checks must be performed to prevent access outside the application scope.\n16,File Handling,MUST,Transaction FIL| &&
@@ -153,9 +153,9 @@ FUNCTION zcr_ai_code_review.
     ( |=== Coding_Rules (1).csv ===| )
     ( |S. No.,Rule,Tag,Rule Contents,Review Outcome\n1,Dead Code,MUST,"If code is called dynamically and appears unused, a comment must be inserted explaining the dynamic usage.",\n2,Dead Code,MUST,All dead | &&
       |code must be deleted from the program.,\n3,Dead Code,MUST,"Dead code includes unreachable statements, such as instructions located after a LEAVE statement, and must be removed.",\n4,Dead Code,MUST NOT| &&
-      |,Dead code is not allowed. Any FORM...ENDFORM or code block that is never called statically or dynamically must not exist.,\n5,Pretty Printer,MUST,ABAP programs must be delivered only after executing | &&
+      |,Dead code is not allowed. Any FORM…ENDFORM or code block that is never called statically or dynamically must not exist.,\n5,Pretty Printer,MUST,ABAP programs must be delivered only after executing | &&
       |the Pretty Printer.,\n6,Pretty Printer,MUST,ABAP keywords must be in uppercase as per Pretty Printer settings.,\n7,Pretty Printer,MUST,"If a DATA statement is used dynamically, a comment must be added| &&
-      | to mention that it is accessed dynamically.",\n8,Pretty Printer,MUST NOT,There must be no unused DATA statements in the program.,\n9,Nested Calls and Conditions,MUST NOT,More than four nested IF...EN| &&
+      | to mention that it is accessed dynamically.",\n8,Pretty Printer,MUST NOT,There must be no unused DATA statements in the program.,\n9,Nested Calls and Conditions,MUST NOT,More than four nested IF…EN| &&
       |DIF blocks must not be used in the same program.,\n10,Nested Calls and Conditions,SHOULD NOT,There should not be more than six nested FORM calls in a program.,\n11,Nested Calls and Conditions,SHOULD N| &&
       |OT,There should not be more than four nested ENDIF statements.,\n12,Read Table,MUST NOT,"When using READ TABLE with the option TRANSPORTING NO FIELDS, the INTO clause must not be used.",\n13,Commit,MU| &&
       |ST,"To reduce maintenance cost and for background programs, the function module BAPI_TRANSACTION_COMMIT must be used.",\n14,Commit,MUST,"Insert, delete, update, or modify operations on Z* tables must | &&
@@ -172,7 +172,7 @@ FUNCTION zcr_ai_code_review.
       |ameters,MUST,"When using CALL FUNCTION, all mandatory parameters (IMPORTING, EXPORTING, TABLES) must be passed.",\n31,Subroutine / Function Module Parameters,MUST,USING parameter in FORM must not be p| &&
       |assed as CHANGING in PERFORM.,\n32,Global Variable,SHOULD ,The usage of global variables should be very limited in terms of number.,\n33,Global Variable,MUST NOT,A global variable must not be passed a| &&
       |s an argument in a PERFORM and changed directly in the FORM at the same time.,\n34,Statement BREAK-POINT,MUST NOT,BREAK-POINT statements must not be used outside the development system.,\n35,Iteration| &&
-      | Disruption,MUST,"Within a DO...ENDDO statement, iteration disruption must be done using the EXIT statement.",\n36,Iteration Disruption,MUST NOT,"Within a DO...ENDDO statement, iteration disruption mu| &&
+      | Disruption,MUST,"Within a DO…ENDDO statement, iteration disruption must be done using the EXIT statement.",\n36,Iteration Disruption,MUST NOT,"Within a DO…ENDDO statement, iteration disruption mu| &&
       |st not be done using CHECK.",\n37,Data Declaration,MUST NOT,Data declarations must not use hyphens (e.g. DATA MY-DATA); underscores must be used instead.,\n38,Data Declaration,MUST NOT,"Data declarati| &&
       |ons must not contain special characters such as %, $, or &.",\n39,Background and Update Task,MUST,CALL FUNCTION STARTING A NEW TASK must be used only if the function module is declared as Remote-Enabl| &&
       |ed.,\n40,Background and Update Task,MUST NOT,"When calling a function module IN BACKGROUND TASK, IN UPDATE TASK, or STARTING A NEW TASK, the EXCEPTION statement must not be used.",\n41,Statement CASE,| &&
@@ -205,38 +205,38 @@ FUNCTION zcr_ai_code_review.
       |\n,Application,ZXX*,\nWD4A-002,,,\nUser Exit,Object Type,Naming Rule,Example\nID,Project (CMOD Extension),PROJ_<SAP Module>,PROJ_PM\nEXIT-001,BAdI Implementation (Single Use),Z<BADI>,\nEXIT-002,Rule,<| &&
       |BADI> = BAdI definition name (truncate if too long),\n,BAdI Implementation (Multiple Use),ZXX<BADI>,\nEXIT-003,Rule,<BADI> = BAdI definition name (truncate if too long),\n,Generated Class for BAdI Imp| &&
       |lementation,ZCL_IM_<BADI>,\nEXIT-004,Rule,Generated name must not be changed,\n,,,\nSAPscript,Object Type,Naming Rule,Example\nID,Standard Text,Z*,\nFORM-001,Style Sheet,Z*,\nFORM-002,Form & Smart For| &&
-      |ms,ZSCXX*,\nFORM-003,Text Object,Z*,\nFORM-004,Text ID,ZXX*,\nFORM-005,,,\nOther,Object Type,Naming Rule,Example\nID,Authorization Object,Z*,\nGENE-002,NON-BUG_FIXING Transport order,"  XXXX - YYY | &&
-      |- First character of the first name \nfollowed by the name or sign of the person \nresponsible  - Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB| &&
-      | for workbench, REP \nfor repair. \n \n        Exceptions:  \n        NOTE - Free text for oss note transport orders \n        AUTH - Free text for authorization transport orders \n        OPER | &&
-      |- Free text for OITO transport orders \n        TEST - Free text for test transport orders \n        HP- Free text for HP transport orders","Remarks: \n. The control made on the description is | &&
-      |\nnot case sensitive \n. The hyphen "-" is mandatory but not \nthe space \n. If PCRs (Product Change Requests) \nare used, it is strongly recommended \nto write the number of the PCR on the \n| &&
-      |free text. \n \nExample: \n8D01 - WB - ADV - V400-TDCR74 domain \ncategory"\nGENE-003,BUG_FIXING Transport order ,"XXXX - YYY - QCnnnnnn - First character of the first \nname followed by the nam| &&
-      |e or sign of the person \nresponsible  - Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB for workbench, REP \nfor repair. \n       nnnnnn: incident| &&
-      | number within Quality Center \ntool.  \n \n        Exceptions:  \n        NOTE - Free text for oss note transport orders \n        AUTH - Free text for authorization transport orders \n        OP| &&
-      |ER - Free text for OITO transport orders \n        TEST - Free text for test transport orders \n        HP- Free text for HP transport orders","Remarks: \n. The control made on the description i| &&
-      |s \nnot case sensitive \n. The hyphen "-" is mandatory but not \nthe space \n. The CTS project DCS_P00034 \nBUG_FIXING) is mandatory. \n \n \nExample: \nSP01 - WB - QC1234456 - CB - part \| &&
-      |nmanagement error"\nGENE-004,,,\n,,,\n2. ABAP Developments (Internal naming convention),GENERAL: ,"In some cases, the convention depends on the carrying distance. If the data is local, for instance in| &&
-      |side a \nFORM, L prefixes the declaration. If the data is global, for instance inside a TOP include of a function \ngroup or before a START-OF-SELECTION command, G prefixes the declaration. ",\nABAP-0| &&
-      |01,Program header ,"Use the template (see appendix) and fill: - The description - The creation date - The author  - The Reference document(s) = SAP analysis. Versions corresponding to the last modific| &&
-      |ations in the \ncode - Modification historics = Date of the modification / Author / VYY-NN <Free>  \n       - YY = applicative version (example: Version 2.1 YY=21) \n       - NN = sequential number fo| &&
-      |r each modification (example NN = 01). \n       - <Free>:  describe the modifications, precise the Ref PCR, MCO if there's some one ",\nABAP-002,,,\nData Decleration,Parameter,P_*,PARAMETERS p_qmnum T| &&
-      |YPE qmnum\nABAP-003,Select Option,S_*,SELECT-OPTIONS s_qmel\nABAP-004,Range,R_*,r_matnr\nABAP-005,Constant,K_*,k_qmart\nABAP-006,Local variable,LW_*,lw_field\nABAP-007,Global variable,GW_*,gw_notif\nA| &&
-      |BAP-007,Local Object,LO_*,lo_obj\nABAP-008,Global Object,GO_*,go_gui\nABAP-008,Local Structure,LS_*,ls_qmel\nABAP-009,Global Structure,GS_*,gs_qmel\nABAP-009,Local Internal Table,LI_*,li_qmel\nABAP-01| &&
-      |0,Global Internal Table,GI_*,gi_qmel\nABAP-010,Type,T_*/TW_*/TS_*/TI_*/TO_*,ti_notif\nABAP-011,FORM Variable,PW_*,pw_doknr\nABAP-012,FORM Structure,PS_*,ps_data\nABAP-012,FORM Table,PI_*,pi_doc\nABAP-| &&
-      |012,FORM Object,PO_*,po_object\nABAP-012,Field Symbol,FS_*,<fs>\nABAP-013,FM Import Variable,IW*,IW_PARAM\nABAP-014,FM Import Structure,IS*,IS_VIQMEL\nABAP-014,FM Export Variable,EW*,EW_RESULT\nABAP-0| &&
-      |14,FM Export Structure,ES*,ES_DATA\nABAP-014,Program modifications,"Additional lines: - 1 or 2 lines: tag code at the end of the line(s) \n                >  ""+VYY-NNNNN (VYY-NNNNN as in the program | &&
-      |Header) \n        Delete of lines: \n                >  ""-VXX-NNNNN \n - More than 2 lines: tag code at the begining and at the end of the paragraph  \n                * INS Begin of VYY-NNNNN  \n   | &&
-      |                    Insert the code..... \n                * INS End of VYY-NNNNN \n \n          Delete of lines :  \n                * DEL Begin of VXX-NNNNN (VXX-NNNNN with reference in the program | &&
-      |header) \n                      Put the code in comment \n                * DEL End of VXX-NNNNN ",\nABAP-015,,,\nVariant variable management ,Variable name in the table TVARVC,ZXX_*,Example: Z8I_FTP_| &&
-      |FREMOTE_VENDOR\nABAP-016,,,\n,,,\n,,,\n3. Structure of an ABAP program,GENERAL,Structure,\nREPT-001,Modlog,"*------------------------------------------------------------------------*\n\n* Description:| &&
-      |                          *\n\n*------------------------------------------------------------------------*\n\n* Date of creation  :   / Author:                                        *\n\n*------------| &&
-      |------------------------------------------------------------*\n\n*                History of modifications                                *\n\n*                                                        | &&
-      |                *\n\n* Date     / User Name / Description of the modification                 *\n\n* Description:                                                           *\n\n*----------------------| &&
-      |--------------------------------------------------*\n\n* JJ/MM/AA / ST99999 / DCSK999999 / PCR-999-XXXXXXXXXXX          *\n\n* Description:XXXXXXXXXXXX           *\n\n*--------------------------------| &&
-      |----------------------------------------*",\nREPT-002,Program Structure,"REPORT ZREPORTNAME\n\n| LINE-SIZE for report with useful output (for job by example)\n\n| MESSAGE-ID to centralize message clas| &&
-      |s.\n\nincludes declarations *mandatory the include MUST exist\n\n- include for top elements\n\n- include for selection screen\n\n- include for local class definition\n\n\n\nINITIALIZATION.\n\nData ini| &&
-      |tialization, setting of status .\n\n\n\nAT SELECTION-SCREEN.\n\nChecks of the selection screen\n\n\n\nSTART-OF-SELECTION *mandatory in case of selection screen\n\nSkeleton of the program\n\ncall metho| &&
-      |d of local class\n\n\n\nIf nothing is mentioned, no exceptions are authorized.",| )
+      |ms,ZSCXX*,\nFORM-003,Text Object,Z*,\nFORM-004,Text ID,ZXX*,\nFORM-005,,,\nOther,Object Type,Naming Rule,Example\nID,Authorization Object,Z*,\nGENE-002,NON-BUG_FIXING Transport order,"  XXXX – YYY | &&
+      |– First character of the first name \nfollowed by the name or sign of the person \nresponsible  – Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB| &&
+      | for workbench, REP \nfor repair. \n \n        Exceptions:  \n        NOTE – Free text for oss note transport orders \n        AUTH – Free text for authorization transport orders \n        OPER | &&
+      |– Free text for OITO transport orders \n        TEST – Free text for test transport orders \n        HP- Free text for HP transport orders ","Remarks: \n• The control made on the description is | &&
+      |\nnot case sensitive \n• The hyphen “-” is mandatory but not \nthe space \n• If PCRs (Product Change Requests) \nare used, it is strongly recommended \nto write the number of the PCR on the \n| &&
+      |free text. \n \nExample: \n8D01 - WB - ADV - V400-TDCR74 domain \ncategory"\nGENE-003,BUG_FIXING Transport order ,"XXXX – YYY – QCnnnnnn – First character of the first \nname followed by the nam| &&
+      |e or sign of the person \nresponsible  – Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB for workbench, REP \nfor repair. \n       nnnnnn: incident| &&
+      | number within Quality Center \ntool.  \n \n        Exceptions:  \n        NOTE – Free text for oss note transport orders \n        AUTH – Free text for authorization transport orders \n        OP| &&
+      |ER – Free text for OITO transport orders \n        TEST – Free text for test transport orders \n        HP- Free text for HP transport orders","Remarks: \n• The control made on the description i| &&
+      |s \nnot case sensitive \n• The hyphen “-” is mandatory but not \nthe space \n• The CTS project DCS_P00034 \nBUG_FIXING) is mandatory. \n \n \nExample: \nSP01 - WB – QC1234456 - CB – part | &&
+      |\nmanagement error"\nGENE-004,,,\n,,,\n2. ABAP Developments (Internal naming convention),GENERAL: ,"In some cases, the convention depends on the carrying distance. If the data is local, for instance i| &&
+      |nside a \nFORM, L prefixes the declaration. If the data is global, for instance inside a TOP include of a function \ngroup or before a START-OF-SELECTION command, G prefixes the declaration. ",\nABAP-| &&
+      |001,Program header ,"Use the template (see appendix) and fill: - The description - The creation date - The author  - The Reference document(s) = SAP analysis. Versions corresponding to the last modifi| &&
+      |cations in the \ncode - Modification historics = Date of the modification / Author / VYY-NN <Free>  \n       - YY = applicative version (example: Version 2.1 YY=21) \n       - NN = sequential number f| &&
+      |or each modification (example NN = 01). \n       - <Free>:  describe the modifications, precise the Ref PCR, MCO if there's some one ",\nABAP-002,,,\nData Decleration,Parameter,P_*,PARAMETERS p_qmnum | &&
+      |TYPE qmnum\nABAP-003,Select Option,S_*,SELECT-OPTIONS s_qmel\nABAP-004,Range,R_*,r_matnr\nABAP-005,Constant,K_*,k_qmart\nABAP-006,Local variable,LW_*,lw_field\nABAP-007,Global variable,GW_*,gw_notif\n| &&
+      |ABAP-007,Local Object,LO_*,lo_obj\nABAP-008,Global Object,GO_*,go_gui\nABAP-008,Local Structure,LS_*,ls_qmel\nABAP-009,Global Structure,GS_*,gs_qmel\nABAP-009,Local Internal Table,LI_*,li_qmel\nABAP-0| &&
+      |10,Global Internal Table,GI_*,gi_qmel\nABAP-010,Type,T_*/TW_*/TS_*/TI_*/TO_*,ti_notif\nABAP-011,FORM Variable,PW_*,pw_doknr\nABAP-012,FORM Structure,PS_*,ps_data\nABAP-012,FORM Table,PI_*,pi_doc\nABAP| &&
+      |-012,FORM Object,PO_*,po_object\nABAP-012,Field Symbol,FS_*,<fs>\nABAP-013,FM Import Variable,IW*,IW_PARAM\nABAP-014,FM Import Structure,IS*,IS_VIQMEL\nABAP-014,FM Export Variable,EW*,EW_RESULT\nABAP-| &&
+      |014,FM Export Structure,ES*,ES_DATA\nABAP-014,Program modifications,"Additional lines: - 1 or 2 lines: tag code at the end of the line(s) \n                >  ""+VYY-NNNNN (VYY-NNNNN as in the program| &&
+      | Header) \n        Delete of lines: \n                >  ""-VXX-NNNNN \n - More than 2 lines: tag code at the begining and at the end of the paragraph  \n                * INS Begin of VYY-NNNNN  \n  | &&
+      |                     Insert the code..... \n                * INS End of VYY-NNNNN \n \n          Delete of lines :  \n                * DEL Begin of VXX-NNNNN (VXX-NNNNN with reference in the program| &&
+      | header) \n                      Put the code in comment \n                * DEL End of VXX-NNNNN ",\nABAP-015,,,\nVariant variable management ,Variable name in the table TVARVC,ZXX_*,Example: Z8I_FTP| &&
+      |_FREMOTE_VENDOR\nABAP-016,,,\n,,,\n,,,\n3. Structure of an ABAP program,GENERAL,Structure,\nREPT-001,Modlog,"*------------------------------------------------------------------------*\n\n* Description| &&
+      |:                          *\n\n*------------------------------------------------------------------------*\n\n* Date of creation  :   / Author:                                        *\n\n*-----------| &&
+      |-------------------------------------------------------------*\n\n*                History of modifications                                *\n\n*                                                       | &&
+      |                 *\n\n* Date     / User Name / Description of the modification                 *\n\n* Description:                                                           *\n\n*---------------------| &&
+      |---------------------------------------------------*\n\n* JJ/MM/AA / ST99999 / DCSK999999 / PCR-999-XXXXXXXXXXX          *\n\n* Description:XXXXXXXXXXXX           *\n\n*-------------------------------| &&
+      |-----------------------------------------*",\nREPT-002,Program Structure,"REPORT ZREPORTNAME\n\n| LINE-SIZE for report with useful output (for job by example)\n\n| MESSAGE-ID to centralize message cla| &&
+      |ss.\n\nincludes declarations *mandatory the include MUST exist\n\n- include for top elements\n\n- include for selection screen\n\n- include for local class definition\n\n\n\nINITIALIZATION.\n\nData in| &&
+      |itialization, setting of status .\n\n\n\nAT SELECTION-SCREEN.\n\nChecks of the selection screen\n\n\n\nSTART-OF-SELECTION *mandatory in case of selection screen\n\nSkeleton of the program\n\ncall meth| &&
+      |od of local class\n\n\n\nIf nothing is mentioned, no exceptions are authorized.",| )
     ( |=== Obsolescence_Rules (1).csv ===| )
     ( |S. No.,Rule,Tag,Rule Content,\n1,environment data,MUST,Local PC environment data must be retrieved using CL_GUI_FRONTEND_SERVICES and should not be hardcoded.,\n2,"Constant, hard coding and text eleme| &&
       |nt",MUST,Constants must be declared with CONSTANTS or externalized in customizing tables; hardcoding is not allowed,\n3,"Constant, hard coding and text element",MUST,"Constants must have meaningful na| &&
@@ -252,7 +252,7 @@ FUNCTION zcr_ai_code_review.
       |alculation efficiently and improves performance significantly (up to 700%)."\n7,SQL Optimization,MUST,"If only some fields are required, select only those fields instead of all columns.\nThis improves| &&
       | performance and reduces memory usage."\n8,SQL Optimization,MUST,"SELECT SINGLE must be used only when the full primary key is specified; otherwise, SELECT UP TO 1 ROWS must be used, even though SELEC| &&
       |T SINGLE is approximately 10% more efficient."\n9,JOIN vs FOR ALL ENTRIES vs nested SELECT,MUST,Join (or view) are more efficient than nested select ( between 200 and 300%). As redundant data can appe| &&
-      |ar in the result (in case of 1:N cardinality) a restrictive list of field MUST be specified in the selected fields ( ie : you MUST NOT use SELECT * FROM ...)\n10,HANA Optimization,MUST,"On SAP HANA (S| &&
+      |ar in the result (in case of 1:N cardinality) a restrictive list of field MUST be specified in the selected fields ( ie : you MUST NOT use SELECT * FROM …)\n10,HANA Optimization,MUST,"On SAP HANA (S| &&
       |oH/S4), result set ordering is not guaranteed; therefore, every SELECT statement must explicitly specify an ORDER BY clause."\n11,HANA Optimization,SHOULD ,FOR ALL ENTRIES has poor performance charact| &&
       |eristics and should be avoided in favor of JOIN or RANGE-based selections.\n12,Internal table parsing,SHOULD ,"Whenever possible, SORTED or HASHED internal tables should be used, or appropriate DEFAUL| &&
       |T/SECONDARY keys should be defined to ensure optimal performance."\n13,Internal table parsing,MUST,"For BINARY SEARCH, the internal table must be sorted according to the fields specified in the search| &&
@@ -292,20 +292,20 @@ FUNCTION zcr_ai_code_review.
     ( |=== Spool_Rules (1).csv ===| )
     ( |S.No.,Rule,Tag,Rule Content\n1,Page header for spool list,MUST,A spool list must have a page header displayed on one single line by default.\n2,Page header for spool list,MUST,"The page header must co| &&
       |ntain program name, program title, user, run date, run time, and page number."\n3,Page header for spool list,MUST,Page header information must be taken from SYST table only.\n4,Page header for spool l| &&
-      |ist,MUST,"Layout must be: Left = Program name, Middle = Program title, Right = User / Date / Hour / Page number."\n5,Page header for spool list,SHOULD ,"For ALV reports, a simplified header layout sho| &&
+      |ist,MUST,"Layout must be: Left ? Program name, Middle ? Program title, Right ? User / Date / Hour / Page number."\n5,Page header for spool list,SHOULD ,"For ALV reports, a simplified header layout sho| &&
       |uld be used."\n6,Default synthetic information,MUST,"The default synthetic report must be composed of three parts: type of run, input indicators, and output indicators."\n7,Default synthetic informati| &&
-      |on,MUST,"If the test-run flag is set, the line must be 'TEST RUN EXECUTION'; otherwise it must be 'REAL EXECUTION'."\n8,Default synthetic information,MUST,"For each input file, a line must dis| &&
-      |play the nature of object ('FILE'), complete file name, and number of lines in the file."\n9,Default synthetic information,MUST,One line must be created for each external object or action (output | &&
-      |file or batch-input).\n10,Default synthetic information,MUST,"Output lines must include nature of object ('FILE' or 'BI'), complete name, action description (e.g. CREATE/UPDATE/DELETE), and nu| &&
+      |on,MUST,"If the test-run flag is set, the line must be “TEST RUN EXECUTION”; otherwise it must be “REAL EXECUTION”."\n8,Default synthetic information,MUST,"For each input file, a line must dis| &&
+      |play the nature of object (“FILE”), complete file name, and number of lines in the file."\n9,Default synthetic information,MUST,One line must be created for each external object or action (output | &&
+      |file or batch-input).\n10,Default synthetic information,MUST,"Output lines must include nature of object (“FILE” or “BI”), complete name, action description (e.g. CREATE/UPDATE/DELETE), and nu| &&
       |mber of lines or number of transactions."\n11,Default list of error,MUST,The error or anomaly list must be generated as a spool list and displayed after the synthetic information section.\n12,Default | &&
       |list of error,MUST,Each error must be displayed on one single line and grouped by error message.\n13,Default list of error,MUST,Each error line must start with a sequential error number followed by an| &&
       | error message (standard BAPI message or specific validation message).\n14,Default list of error,MUST,"Each error line must include the line number in the file, the first 50 characters of the erroneou| &&
-      |s line, and other significant information required for error correction."\n15,Default report for no-selected data,SHOULD ,The selection screen must display a warning message 'No data selected' if | &&
+      |s line, and other significant information required for error correction."\n15,Default report for no-selected data,SHOULD ,The selection screen must display a warning message “No data selected” if | &&
       |the user executes the report without selecting any data.\n16,Standard texts,MUST,All complex paragraphs must be documented in standard text (SO10) in English and identified in the form by standard tex| &&
       |t ID.\n17,Standard texts,MUST,Standard texts must be identified and called in the program using their Standard Text ID.\n18,Standard texts,MUST NOT,"Short texts that describe a block or frame of frame| &&
-      | must not be included in standard text. Example: In form 'List of applicable publications', remarks about CMMs, SBs, SILs, TEBs are exceptions                                                      | &&
-      |           'REMARK:As CMMM's, CMMV's, SB's, SIL's, TEB's, are subject to permanent updating (each\nindividual CMM, SB, SIL, TEB, bear a different issue/revision date) these documents are n| &&
-      |ot part of\nthe LAP chart. For CMM's please refer to the CDS and./or CEL document and for CB's, SIL's, TEB's,\nto the respective index."| )
+      | must not be included in standard text. Example: In form “List of applicable publications”, remarks about CMMs, SBs, SILs, TEBs are exceptions                                                      | &&
+      |           “REMARK:As CMMM’s, CMMV’s, SB’s, SIL’s, TEB’s, are subject to permanent updating (each\nindividual CMM, SB, SIL, TEB, bear a different issue/revision date) these documents are n| &&
+      |ot part of\nthe LAP chart. For CMM’s please refer to the CDS and./or CEL document and for CB’s, SIL’s, TEB’s,\nto the respective index.”"| )
     ( |=== Standard_Modification_Rules.csv ===| )
     ( |S.No.,Rule,Tag,Rule\n1,"User-exit, enhancement, standard modification",MUST,"User-exits, enhancements, and BADIs must be implemented by SAP Operation."\n2,"User-exit, enhancement, standard modificatio| &&
       |n",MUST,Standard modifications (with modification key) must be implemented by SAP Operation.\n3,"User-exit, enhancement, standard modification",MUST,Standard indexes must be implemented by SAP Operati| &&
