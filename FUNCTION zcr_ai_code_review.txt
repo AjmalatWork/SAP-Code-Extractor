@@ -117,58 +117,218 @@ FUNCTION zcr_ai_code_review.
   ENDIF.
 
   "=====================================================================
-  " 2. Load the rule knowledge base (all CSVs in IV_KB_DIR) once
+  " 2. Rule knowledge base - the 9 GEM CSVs, embedded as literals below
+  "    instead of read from IV_KB_DIR at runtime. GUI_UPLOAD kept failing
+  "    (SY-SUBRC = 1) against the frontend folder, so this sidesteps that
+  "    entirely for now. IV_KB_DIR is unused as a result - kept on the
+  "    interface in case file-based loading comes back later.
+  "    Each CSV is one header entry ("=== filename ===") plus one content
+  "    entry holding the whole file, internal line breaks written as the
+  "    literal escape \n (a real newline once the template is evaluated).
   "=====================================================================
-  DATA: lt_dir_files      TYPE filetable,
-        ls_dir_file       TYPE file_table,
-        lv_kb_count       TYPE i,
-        lv_kb_files_loaded TYPE i,
-        lv_csv_filename   TYPE string,
-        lt_csv_lines      TYPE string_table,
-        lv_csv_line       TYPE string.
+  DATA lv_csv_line TYPE string.
 
-  CALL METHOD cl_gui_frontend_services=>directory_list_files
-    EXPORTING
-      directory   = iv_kb_dir
-      filter      = '*.csv'
-    CHANGING
-      file_table  = lt_dir_files
-      count       = lv_kb_count
-    EXCEPTIONS
-      OTHERS      = 4.
+  " >>> BEGIN GENERATED KB LITERAL - see GEM/*.csv <<<
+  DATA(lt_kb_lines) = VALUE string_table(
+    ( |=== Architecture_Design_Rules (2).csv ===| )
+    ( |S.No.,Rule,Tag,Rule content\n1,Code Length,MUST NOT,The number of lines between FORM and ENDFORM must not exceed 500.\n2,Displayed Lines,MUST NOT,"Programs must not retrieve and display more than 20,0| &&
+      |00 lines."\n3,Batch Input,SHOULD NOT,Batch input programs should not be used.\n4,Batch Input,SHOULD ,A BAPI-based solution should be used in priority.\n5,Search help,MUST,Search help must be used for | &&
+      |all select-options and parameters when a unique list of values exists.\n6,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last| &&
+      | resort.",MUST,All object updates must be synchronized when a transactional treatment updates multiple tables without native lock management.\n7,"Concurrent access management\nStep 2 -  A specific s| &&
+      |olution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Access by other users must be prevented during the create or update process.\n8,"Concurrent access management\nSte| &&
+      |p 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All identified objects must be locked using lock object functions before any update.\n9,"Conc| &&
+      |urrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,"If any required object is already locked, all updates must be s| &&
+      |topped or failed."\n10,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,Objects must be created or updated o| &&
+      |nly after all locks are successfully acquired.\n11,"Concurrent access management\nStep 2 -  A specific solution based on CALL TRANSACTION or batch-input is used only as a last resort.",MUST,All lock| &&
+      |ed objects must be unlocked after processing is completed.\n12,Range number,MUST,Standard number ranges (transaction SNRO) must be used when a specification defines an increment field without describi| &&
+      |ng the technical method to determine the next value.\n13,File Handling,MUST,Logical filenames must be used when a filename is provided by the user.\n14,File Handling,MUST,Special characters must be re| &&
+      |moved from user-provided filenames before use.\n15,File Handling,MUST,Filename and path checks must be performed to prevent access outside the application scope.\n16,File Handling,MUST,Transaction FIL| &&
+      |E must be used to manage file paths instead of hard-coded paths.\n17,File Handling,MUST,Transaction FILE must be used to define logical paths and logical filenames.\n18,File Handling,MUST,File upload | &&
+      |and download must be restricted to authorized application paths and accepted file types.\n19,File Handling,MUST,System-specific CASE logic for file paths must be avoided.\n20,Access to data from other| &&
+      | application,MUST,Access to data belonging to another project must be formally requested from the owning project through a service.\n21,Access to data from other application,SHOULD ,"When accessing st| &&
+      |andard SAP data (e.g. materials, BOMs), access must be provided via a standard BAPI."\n22,Package organization,MUST,All development must be assigned to a dedicated package following the naming convent| &&
+      |ion ZZ<APPLICATION_CODE><FREE> \n23,Usage of other project ressources,MUST NOT,"Project B must not directly use objects (tables, classes, function modules, etc.) of Project A."\n24,Usage of other proj| &&
+      |ect ressources,MUST,"Project A must expose interfaces (API, function module, class, etc.) for its objects."\n25,Usage of other project ressources,MUST,Project B must use only the exposed interfaces fr| &&
+      |om Project A.| )
+    ( |=== Coding_Rules (1).csv ===| )
+    ( |S. No.,Rule,Tag,Rule Contents,Review Outcome\n1,Dead Code,MUST,"If code is called dynamically and appears unused, a comment must be inserted explaining the dynamic usage.",\n2,Dead Code,MUST,All dead | &&
+      |code must be deleted from the program.,\n3,Dead Code,MUST,"Dead code includes unreachable statements, such as instructions located after a LEAVE statement, and must be removed.",\n4,Dead Code,MUST NOT| &&
+      |,Dead code is not allowed. Any FORM...ENDFORM or code block that is never called statically or dynamically must not exist.,\n5,Pretty Printer,MUST,ABAP programs must be delivered only after executing | &&
+      |the Pretty Printer.,\n6,Pretty Printer,MUST,ABAP keywords must be in uppercase as per Pretty Printer settings.,\n7,Pretty Printer,MUST,"If a DATA statement is used dynamically, a comment must be added| &&
+      | to mention that it is accessed dynamically.",\n8,Pretty Printer,MUST NOT,There must be no unused DATA statements in the program.,\n9,Nested Calls and Conditions,MUST NOT,More than four nested IF...EN| &&
+      |DIF blocks must not be used in the same program.,\n10,Nested Calls and Conditions,SHOULD NOT,There should not be more than six nested FORM calls in a program.,\n11,Nested Calls and Conditions,SHOULD N| &&
+      |OT,There should not be more than four nested ENDIF statements.,\n12,Read Table,MUST NOT,"When using READ TABLE with the option TRANSPORTING NO FIELDS, the INTO clause must not be used.",\n13,Commit,MU| &&
+      |ST,"To reduce maintenance cost and for background programs, the function module BAPI_TRANSACTION_COMMIT must be used.",\n14,Commit,MUST,"Insert, delete, update, or modify operations on Z* tables must | &&
+      |be followed by COMMIT WORK and ROLLBACK, except inside a user-exit.",\n15,Mass Update Program,MUST,A mass update program must have an integer parameter defining the commit frequency (package size).,\n| &&
+      |16,Mass Update Program,MUST,A checkbox parameter for test mode must exist and its default value must be checked.,\n17,Mass Update Program,MUST,"In test mode, no COMMIT must be executed.",\n18,Mass Upd| &&
+      |ate Program,MUST,Execution of the program must be controlled using authorization objects.,\n19,Mass Update Program,MUST,"Program execution must be logged, including selection screen values, number of | &&
+      |impacted lines, user who launched the report, and execution date/time.",\n20,Mass Update Program,SHOULD ,The output of the test mode should be sufficient to validate whether the action will be managed| &&
+      | correctly.,\n21,Comment,MUST,The ratio between code and comments must be at least 5%.,\n22,Native SQL / OS Command,MUST NOT,"C-Calls, RFCExec, or SYSTEM calls must not be used.",\n23,Native SQL / OS | &&
+      |Command,MUST NOT,The SQL statement CLIENT SPECIFIC must not be used.,\n24,Native SQL / OS Command,MUST NOT,The function module Z_CALL_SYSTEM_UNIX must not be used in new programs; its usage is tolerat| &&
+      |ed only for legacy programs.,\n25,Native SQL / OS Command,SHOULD NOT,"Native SQL should not be used; only Open SQL should be used. Exceptions are allowed only for specific Oracle monitoring or content| &&
+      | server tools (e.g. DB size, content server usage).",\n26,Statement STOP,MUST,The STOP statement must be used only in executable programs.,\n27,Statement STOP,MUST,"The STOP statement must be used onl| &&
+      |y in AT SELECTION-SCREEN (without additions), START-OF-SELECTION, or GET event blocks.",\n28,Statement MESSAGE,MUST,The message number (SE91) referenced by MESSAGE ID mid TYPE mtype NUMBER num must ex| &&
+      |ist in the message class.,\n29,Subroutine / Function Module Parameters,MUST,Subroutine calls must have the same number of parameters and matching parameter types.,\n30,Subroutine / Function Module Par| &&
+      |ameters,MUST,"When using CALL FUNCTION, all mandatory parameters (IMPORTING, EXPORTING, TABLES) must be passed.",\n31,Subroutine / Function Module Parameters,MUST,USING parameter in FORM must not be p| &&
+      |assed as CHANGING in PERFORM.,\n32,Global Variable,SHOULD ,The usage of global variables should be very limited in terms of number.,\n33,Global Variable,MUST NOT,A global variable must not be passed a| &&
+      |s an argument in a PERFORM and changed directly in the FORM at the same time.,\n34,Statement BREAK-POINT,MUST NOT,BREAK-POINT statements must not be used outside the development system.,\n35,Iteration| &&
+      | Disruption,MUST,"Within a DO...ENDDO statement, iteration disruption must be done using the EXIT statement.",\n36,Iteration Disruption,MUST NOT,"Within a DO...ENDDO statement, iteration disruption mu| &&
+      |st not be done using CHECK.",\n37,Data Declaration,MUST NOT,Data declarations must not use hyphens (e.g. DATA MY-DATA); underscores must be used instead.,\n38,Data Declaration,MUST NOT,"Data declarati| &&
+      |ons must not contain special characters such as %, $, or &.",\n39,Background and Update Task,MUST,CALL FUNCTION STARTING A NEW TASK must be used only if the function module is declared as Remote-Enabl| &&
+      |ed.,\n40,Background and Update Task,MUST NOT,"When calling a function module IN BACKGROUND TASK, IN UPDATE TASK, or STARTING A NEW TASK, the EXCEPTION statement must not be used.",\n41,Statement CASE,| &&
+      |MUST,"After a CASE statement, the first statement must be WHEN.",\n42,Statement CASE,MUST,The last statement in a CASE block must be WHEN OTHERS to avoid dumps when an unplanned value is encountered.,| &&
+      |\n43,Statement CALL TRANSACTION,MUST,"When using CALL TRANSACTION, the transaction must exist; its existence can be verified using SE93.",\n44,Statement CALL TRANSACTION,MUST,"Since NetWeaver 7.4, CAL| &&
+      |L TRANSACTION must be used with the addition WITH AUTHORITY-CHECK, as calls without authority checks are obsolete.",\n45,FOR ALL ENTRIES Statement,MUST,"Before using FOR ALL ENTRIES, it must be ensure| &&
+      |d that the internal table is not empty.",| )
+    ( |=== General_Rules (1).csv ===| )
+    ( |S.No.,Rule,Tag,Rule Contents\n1,Usage of Standard Routines,MUST NOT,Calls to SAP standard subroutines (FORM routines) must not be performed\n2,Language,MUST,"All development, including descriptions an| &&
+      |d comments, must be written in English."\n3,Data Validation,MUST,All variables declared in ABAP must be explicitly typed.\n4,Data Validation,MUST,Input parameters must use appropriate data elements.\n| &&
+      |5,Data Validation,MUST,All selection-screen parameters and select-options must be typed.\n6,Data Validation,MUST NOT,"Free text types (such as STRING, BLOB, or long string types) must not be used for | &&
+      |anything other than comments."\n7,Error Handling,MUST NOT,The error-handling section must not be empty and must contain appropriate error-handling logic.\n8,Error Handling,MUST,"Any caught exception m| &&
+      |ust be either propagated to the caller (program, function, class) or handled appropriately."\n9,Error Handling,MUST NOT,"Custom error pages must not disclose applicative or infrastructure details, suc| &&
+      |h as stack traces or technical dumps."\n10,Error Handling,MUST,Errors must be translated into understandable and user-friendly messages for end users.\n11,Error Handling,MUST,Exception return codes (S| &&
+      |Y-SUBRC) must be checked when calling function modules or BAPIs that define exceptions.\n12,Error Handling,MUST,Errors raised by class methods must be handled using TRY/CATCH blocks.\n13,Error Handlin| &&
+      |g,MUST NOT,The exception class CX_ROOT must not be used.\n14,Error Handling,MUST,RFC standard exceptions such as SYSTEM_FAILURE and COMMUNICATION_FAILURE must be explicitly used and handled.\n15,Error| &&
+      | Handling,SHOULD ,New function modules or class methods should use exceptions as required.| )
+    ( |=== Naming_conventions (1).csv ===| )
+    ( |GENERAL: ,,,\n1- In the following codification XX are the 2 first digits of the project's code. ,,,\n"2- For transverse developments those 2 digits are = ""ZZ"" ",,,\n3-These naming conventions are no| &&
+      |t case-sensitive,,,\n,,,\n,,,\n,Naming Rule,Example,\n1. ABAP Workbench components (External naming convention),ZZXX*,ZZ8D,\nObject Type,ZZ8D_AUTHORING,,\nPackage (Development Class),ZPR21,,\nAuthorin| &&
+      |g Package,,,\n"Special transverse package for APPENDs, User-Exits, etc.",,,\nDICTIONARY,Object Type,Naming Rule,Example\nID,Table,ZDCXXT*,ZDCA6T_DIFF_VARI\nDICO-001,Data Element,ZXX*,Z2F_COUNTRY\nDICO| &&
+      |-002,Parameter ID (SET/GET),ZXX*,Z8D_CMS_DISPLAY_MESS\nDICO-003,Domain,Z*,ZCOUNTRY\nDICO-004,Table Type,ZDCXXI*,ZDC2FI_T_S_MFRPN\nDICO-005,Type Group (Type Pool),ZXX*,Z8DPM\nDICO-006,View,ZDCXXV*,ZDCG| &&
+      |1V_FS_INV_2\nDICO-007,Structure,ZDCXXS*,ZDC8DSTUB_MSG\nDICO-008,Collective Search Help,ZC*,ZCB7_DISCR_KEY\nDICO-009,Elementary Search Help,If part of a collective search help: <CollectiveSearchHelp>NN| &&
+      | (NN = 2-digit numeric suffix); otherwise ZC*,ZC8I01\nDICO-010,Append Search Help,ZA<CollectiveSearchHelp>,ZAMATCSP1\nDICO-011,Lock Object,EZ<TableName> or E<TableName>,EZDCB7D_JOB_PAR\nDICO-012,,,\nP| &&
+      |rograms,Object Type,Naming Rule,Example\nID,Program Name,ZPCXX<type>*,ZPC8DR07\nPROG-001,Type Codes,"B = Batch Input, R = Report, T = Transaction (Module Pool), I = Include, Z = Other",\n,Variant Name| &&
+      | for Standard Program,ZCXX*,\nPROG-002,Program Status,Free,\nPROG-003,Dynpros (Specific Programs),9000 - 9999,\nPROG-004,Dynpros (SAP Standard Programs),9500 - 9999,\nPROG-005,Transaction Code,ZC*,ZCA| &&
+      |OT_ACKNOWLDG_DIS\nPROG-006,Area Menu,ZC*,ZCSP_MADAMEI\nPROG-007,Logical Database,ZCXX_*,ZCF0_QNQ\nPROG-008,Message Class,ZCXX*,ZCA6_MESS_IPC_MF\nPROG-009,,,\nFunction Group,Object Type,Naming Rule,Exa| &&
+      |mple\nID,Function Group,ZCXX_*,ZC2F_FIMS\nFUNC-001,Function Module,Z_CXX_*,Z_CG1_PURGE_EXTRACT_005\nFUNC-002,,,\nClass Library,Object Type,Naming Rule,Example\nID,Class,ZCL_CXX*,ZCL_CSR_IDENT_WORKFLOW| &&
+      |\nCLAS-001,Interface,ZIF_CXX*,\nCLAS-002,,,\nWeb Dynpro,Object Type,Naming Rule,Example\nID,Component / Interface,ZXX<type>*,\nWD4A-001,Type Codes,"C = Web Dynpro Component, I = Web Dynpro Interface",| &&
+      |\n,Application,ZXX*,\nWD4A-002,,,\nUser Exit,Object Type,Naming Rule,Example\nID,Project (CMOD Extension),PROJ_<SAP Module>,PROJ_PM\nEXIT-001,BAdI Implementation (Single Use),Z<BADI>,\nEXIT-002,Rule,<| &&
+      |BADI> = BAdI definition name (truncate if too long),\n,BAdI Implementation (Multiple Use),ZXX<BADI>,\nEXIT-003,Rule,<BADI> = BAdI definition name (truncate if too long),\n,Generated Class for BAdI Imp| &&
+      |lementation,ZCL_IM_<BADI>,\nEXIT-004,Rule,Generated name must not be changed,\n,,,\nSAPscript,Object Type,Naming Rule,Example\nID,Standard Text,Z*,\nFORM-001,Style Sheet,Z*,\nFORM-002,Form & Smart For| &&
+      |ms,ZSCXX*,\nFORM-003,Text Object,Z*,\nFORM-004,Text ID,ZXX*,\nFORM-005,,,\nOther,Object Type,Naming Rule,Example\nID,Authorization Object,Z*,\nGENE-002,NON-BUG_FIXING Transport order,"  XXXX - YYY | &&
+      |- First character of the first name \nfollowed by the name or sign of the person \nresponsible  - Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB| &&
+      | for workbench, REP \nfor repair. \n \n        Exceptions:  \n        NOTE - Free text for oss note transport orders \n        AUTH - Free text for authorization transport orders \n        OPER | &&
+      |- Free text for OITO transport orders \n        TEST - Free text for test transport orders \n        HP- Free text for HP transport orders","Remarks: \n. The control made on the description is | &&
+      |\nnot case sensitive \n. The hyphen "-" is mandatory but not \nthe space \n. If PCRs (Product Change Requests) \nare used, it is strongly recommended \nto write the number of the PCR on the \n| &&
+      |free text. \n \nExample: \n8D01 - WB - ADV - V400-TDCR74 domain \ncategory"\nGENE-003,BUG_FIXING Transport order ,"XXXX - YYY - QCnnnnnn - First character of the first \nname followed by the nam| &&
+      |e or sign of the person \nresponsible  - Free text  \n \n        XXXX:  project code on four digits. \n        YYY: CUS for customizing, WB for workbench, REP \nfor repair. \n       nnnnnn: incident| &&
+      | number within Quality Center \ntool.  \n \n        Exceptions:  \n        NOTE - Free text for oss note transport orders \n        AUTH - Free text for authorization transport orders \n        OP| &&
+      |ER - Free text for OITO transport orders \n        TEST - Free text for test transport orders \n        HP- Free text for HP transport orders","Remarks: \n. The control made on the description i| &&
+      |s \nnot case sensitive \n. The hyphen "-" is mandatory but not \nthe space \n. The CTS project DCS_P00034 \nBUG_FIXING) is mandatory. \n \n \nExample: \nSP01 - WB - QC1234456 - CB - part \| &&
+      |nmanagement error"\nGENE-004,,,\n,,,\n2. ABAP Developments (Internal naming convention),GENERAL: ,"In some cases, the convention depends on the carrying distance. If the data is local, for instance in| &&
+      |side a \nFORM, L prefixes the declaration. If the data is global, for instance inside a TOP include of a function \ngroup or before a START-OF-SELECTION command, G prefixes the declaration. ",\nABAP-0| &&
+      |01,Program header ,"Use the template (see appendix) and fill: - The description - The creation date - The author  - The Reference document(s) = SAP analysis. Versions corresponding to the last modific| &&
+      |ations in the \ncode - Modification historics = Date of the modification / Author / VYY-NN <Free>  \n       - YY = applicative version (example: Version 2.1 YY=21) \n       - NN = sequential number fo| &&
+      |r each modification (example NN = 01). \n       - <Free>:  describe the modifications, precise the Ref PCR, MCO if there's some one ",\nABAP-002,,,\nData Decleration,Parameter,P_*,PARAMETERS p_qmnum T| &&
+      |YPE qmnum\nABAP-003,Select Option,S_*,SELECT-OPTIONS s_qmel\nABAP-004,Range,R_*,r_matnr\nABAP-005,Constant,K_*,k_qmart\nABAP-006,Local variable,LW_*,lw_field\nABAP-007,Global variable,GW_*,gw_notif\nA| &&
+      |BAP-007,Local Object,LO_*,lo_obj\nABAP-008,Global Object,GO_*,go_gui\nABAP-008,Local Structure,LS_*,ls_qmel\nABAP-009,Global Structure,GS_*,gs_qmel\nABAP-009,Local Internal Table,LI_*,li_qmel\nABAP-01| &&
+      |0,Global Internal Table,GI_*,gi_qmel\nABAP-010,Type,T_*/TW_*/TS_*/TI_*/TO_*,ti_notif\nABAP-011,FORM Variable,PW_*,pw_doknr\nABAP-012,FORM Structure,PS_*,ps_data\nABAP-012,FORM Table,PI_*,pi_doc\nABAP-| &&
+      |012,FORM Object,PO_*,po_object\nABAP-012,Field Symbol,FS_*,<fs>\nABAP-013,FM Import Variable,IW*,IW_PARAM\nABAP-014,FM Import Structure,IS*,IS_VIQMEL\nABAP-014,FM Export Variable,EW*,EW_RESULT\nABAP-0| &&
+      |14,FM Export Structure,ES*,ES_DATA\nABAP-014,Program modifications,"Additional lines: - 1 or 2 lines: tag code at the end of the line(s) \n                >  ""+VYY-NNNNN (VYY-NNNNN as in the program | &&
+      |Header) \n        Delete of lines: \n                >  ""-VXX-NNNNN \n - More than 2 lines: tag code at the begining and at the end of the paragraph  \n                * INS Begin of VYY-NNNNN  \n   | &&
+      |                    Insert the code..... \n                * INS End of VYY-NNNNN \n \n          Delete of lines :  \n                * DEL Begin of VXX-NNNNN (VXX-NNNNN with reference in the program | &&
+      |header) \n                      Put the code in comment \n                * DEL End of VXX-NNNNN ",\nABAP-015,,,\nVariant variable management ,Variable name in the table TVARVC,ZXX_*,Example: Z8I_FTP_| &&
+      |FREMOTE_VENDOR\nABAP-016,,,\n,,,\n,,,\n3. Structure of an ABAP program,GENERAL,Structure,\nREPT-001,Modlog,"*------------------------------------------------------------------------*\n\n* Description:| &&
+      |                          *\n\n*------------------------------------------------------------------------*\n\n* Date of creation  :   / Author:                                        *\n\n*------------| &&
+      |------------------------------------------------------------*\n\n*                History of modifications                                *\n\n*                                                        | &&
+      |                *\n\n* Date     / User Name / Description of the modification                 *\n\n* Description:                                                           *\n\n*----------------------| &&
+      |--------------------------------------------------*\n\n* JJ/MM/AA / ST99999 / DCSK999999 / PCR-999-XXXXXXXXXXX          *\n\n* Description:XXXXXXXXXXXX           *\n\n*--------------------------------| &&
+      |----------------------------------------*",\nREPT-002,Program Structure,"REPORT ZREPORTNAME\n\n| LINE-SIZE for report with useful output (for job by example)\n\n| MESSAGE-ID to centralize message clas| &&
+      |s.\n\nincludes declarations *mandatory the include MUST exist\n\n- include for top elements\n\n- include for selection screen\n\n- include for local class definition\n\n\n\nINITIALIZATION.\n\nData ini| &&
+      |tialization, setting of status .\n\n\n\nAT SELECTION-SCREEN.\n\nChecks of the selection screen\n\n\n\nSTART-OF-SELECTION *mandatory in case of selection screen\n\nSkeleton of the program\n\ncall metho| &&
+      |d of local class\n\n\n\nIf nothing is mentioned, no exceptions are authorized.",| )
+    ( |=== Obsolescence_Rules (1).csv ===| )
+    ( |S. No.,Rule,Tag,Rule Content,\n1,environment data,MUST,Local PC environment data must be retrieved using CL_GUI_FRONTEND_SERVICES and should not be hardcoded.,\n2,"Constant, hard coding and text eleme| &&
+      |nt",MUST,Constants must be declared with CONSTANTS or externalized in customizing tables; hardcoding is not allowed,\n3,"Constant, hard coding and text element",MUST,"Constants must have meaningful na| &&
+      |mes (not the value itself), and composite constants should be preferred whenever possible.",\n4, Obsolete functions,MUST NOT,Obsolete SAP function modules must not be used.,\n5,Syntax checks and code | &&
+      |inspector,MUST NOT,New programs must not have any errors or warnings in usual syntax checks.,\n6,Subroutines,MUST NOT,"Since version 7.31, FORM / ENDFORM subroutines are obsolete and must not be used | &&
+      |in new programs. Local classes should be used instead, and for existing programs, new functionality should be implemented in local classes with migration of old functionality when possible",\n7,Dynami| &&
+      |c SQL,MUST,"Dynamic SQL only be used when the aircraft program is specified in the table name, and you must always check that the variables used are not empty.",| )
+    ( |=== Performance (1).csv ===| )
+    ( |S.No.,Rule,Tag,Rule Content\n1,WAIT UP TO,SHOULD NOT,WAIT UP TO' should be avoided and used only where it is explicitly required for queue management scenarios.\n2,SELECT / ENDSELECT.,MUST,NO Nested S| &&
+      |QL statements must be used\n3,SELECT / ENDSELECT.,MUST NOT,"No, EXIT or CHECK statements be used between SELECT and ENDSELECT."\n4,Index usage,SHOULD NOT,Negative conditions not to be used  because th| &&
+      |ey disabled usage of the index\n5,Memory Management,MUST,"Field symbols always be checked for assignment before use and explicitly unassigned with UNASSIGN when no longer needed, as using CLEAR can be| &&
+      | unsafe (see rule SECU-010 for shared memory)."\n6,SQL Optimization,MUST,"Use aggregation functions (MIN, MAX, COUNT, etc.) with GROUP BY instead of SELECT / ENDSELECT. This lets the database do the c| &&
+      |alculation efficiently and improves performance significantly (up to 700%)."\n7,SQL Optimization,MUST,"If only some fields are required, select only those fields instead of all columns.\nThis improves| &&
+      | performance and reduces memory usage."\n8,SQL Optimization,MUST,"SELECT SINGLE must be used only when the full primary key is specified; otherwise, SELECT UP TO 1 ROWS must be used, even though SELEC| &&
+      |T SINGLE is approximately 10% more efficient."\n9,JOIN vs FOR ALL ENTRIES vs nested SELECT,MUST,Join (or view) are more efficient than nested select ( between 200 and 300%). As redundant data can appe| &&
+      |ar in the result (in case of 1:N cardinality) a restrictive list of field MUST be specified in the selected fields ( ie : you MUST NOT use SELECT * FROM ...)\n10,HANA Optimization,MUST,"On SAP HANA (S| &&
+      |oH/S4), result set ordering is not guaranteed; therefore, every SELECT statement must explicitly specify an ORDER BY clause."\n11,HANA Optimization,SHOULD ,FOR ALL ENTRIES has poor performance charact| &&
+      |eristics and should be avoided in favor of JOIN or RANGE-based selections.\n12,Internal table parsing,SHOULD ,"Whenever possible, SORTED or HASHED internal tables should be used, or appropriate DEFAUL| &&
+      |T/SECONDARY keys should be defined to ensure optimal performance."\n13,Internal table parsing,MUST,"For BINARY SEARCH, the internal table must be sorted according to the fields specified in the search| &&
+      | condition"\n14,Database Field Selection,MUST NOT,"Use SELECT * in database queries. Always retrieve only the required fields to minimize database load, memory consumption, and network traffic."\n15,R| &&
+      |esult Set Ordering,SHOULD,Use ORDER BY in SELECT statements whenever the sequence of retrieved records is relevant to program logic or subsequent processing.\n16,Key-Based Selection,MUST,Use appropria| &&
+      |te primary or secondary key fields in the WHERE clause to avoid full table scans and improve database performance.\n17,Data Retrieval Structure,SHOULD NOT,Use INTO CORRESPONDING FIELDS OF for large-vo| &&
+      |lume data retrieval. Prefer direct mapping into appropriately typed internal tables (TABLE OF).\n18,Access to Pooled/Cluster Tables,MUST NOT,"Perform direct SELECT statements on pooled or cluster tabl| &&
+      |es. Use SAP standard Function Modules, APIs, or provided access methods."\n19,FOR ALL ENTRIES Optimization,SHOULD,"Prefer database JOINs over FOR ALL ENTRIES. When FOR ALL ENTRIES is required, use sui| &&
+      |table RANGES and packet processing while considering SAP limitations for high-volume selections."\n20,Database Access in Loops,MUST NOT,"Perform repeated database access to the same table within loops| &&
+      |, such as executing SELECT statements inside LOOP, DO, or WHILE constructs."\n21,Database Result Validation,MUST,"Use SY-SUBRC to validate the result of database operations. Do not rely on SY-DBCNT, I| &&
+      |S INITIAL, or IS ASSIGNED immediately after a database SELECT."\n22,Safe Database Modification,MUST,"Perform initial and validation checks before executing any UPDATE, MODIFY, or DELETE operation on d| &&
+      |atabase tables to prevent unintended data changes."\n23,Return Code Validation,MUST,"Check SY-SUBRC after database operations (SELECT, INSERT, UPDATE, DELETE, MODIFY), READ TABLE, file interface opera| &&
+      |tions (OPEN DATASET, READ DATASET), ASSIGN, and CALL FUNCTION statements."\n24,Efficient Table Search,SHOULD,Sort internal tables before performing multiple reads and use BINARY SEARCH where applicabl| &&
+      |e to improve lookup performance.\n25,Nested Loop Optimization,SHOULD NOT,"Use nested loops on large datasets. Prefer techniques such as Parallel Cursor, Hashed Tables, or Sorted Tables for efficient p| &&
+      |rocessing."\n26,Standard Table Usage,SHOULD,"Use Standard Tables when frequent insertions, deletions, or modifications of key fields are expected."\n27,Sorted Table Usage,SHOULD,Use Sorted Tables when| &&
+      | the primary access pattern involves frequent reads using sorted or key-based access.\n28,Hashed Table Usage,SHOULD,"Use Hashed Tables when unique key-based access is required, particularly for master| &&
+      | data, configuration data, or lookup-intensive scenarios."\n29,Performance-Oriented Design,MUST,"Design, develop, and test programs considering expected production data volumes, input volumes, and out| &&
+      |put volumes to ensure acceptable runtime performance."| )
+    ( |=== Security_rules (1).csv ===| )
+    ( |S.No.,Rule,Tag,Rule Contents\n1,Return Code,MUST,SY-SUBRC must be checked only if the EXCEPTION statement is used when calling a function module.\n2,Return Code,MUST,The return code SY-SUBRC must be t| &&
+      |ested immediately after the statement being checked.\n3,Exception Management,MUST,All exceptions raised using the RAISE statement must be declared in the function module interface.\n4,Exception Manage| &&
+      |ment,MUST,All exceptions declared in the function module interface must be used at least once.\n5,Authorization Objects,MUST,Authorization checks must be implemented using authorization objects and th| &&
+      |e AUTHORITY-CHECK statement.\n6,Authorization Objects,SHOULD ,Standard authorization objects should be used whenever possible.\n7,Authorization Objects,MUST NOT,"Authorization checks must not be imple| &&
+      |mented by checking user role assignments, as role checks are not robust enough."\n8,Authorization Objects,MUST NOT,The profiles SAP_ALL and SAP_NEW must not be used.\n9,S_TABU_DIS,MUST,Authorization o| &&
+      |bject S_TABU_DIS must be used only for Z* authorization groups in business roles.\n10,Runtime Change,MUST NOT,No change of the current user (SY-UNAME) must be done at runtime.\n11,Security Logging and| &&
+      | Monitoring,MUST,"When message logs are required, they must be handled using standard SAP logging functions (transaction SLG1)."\n12,Security Logging and Monitoring,MUST NOT,Sensitive data must not be| &&
+      | included in log messages.\n13,Security Logging and Monitoring,MUST NOT,"SAP password hash data must not be made public, as it contains sensitive personal information."\n14,Security Logging and Monito| &&
+      |ring,MUST NOT,"SELECT * must not be used on sensitive tables or views (USR02, USH02, USRPWDHISTORY, USH02_ARC_TMP, VUSER001, VPWD_USR02); fields must be selected individually."\n15,Security Logging an| &&
+      |d Monitoring,MUST NOT,"Sensitive data must not be included in any MESSAGE (success, error, warning, or information) presented to the end user."\n16,Security Logging and Monitoring,MUST NOT,MESSAGE sta| &&
+      |tements (message class and number) must not contain any sensitive data.\n17,Security Logging and Monitoring,SHOULD NOT,Change logs should not be activated on application tables due to the large volume| &&
+      | of generated data.\n18,Interfaces,MUST,The only acceptable exception for using cl_http_client=>create_by_url is when the API URL is dynamic (e.g. AWS endpoints for large files).\n19,Interfaces,SHOULD| &&
+      | ,REST or OData APIs should be used as the preferred solution compared to SOAP web services.\n20,Interfaces,MUST NOT,cl_http_client=>create_by_url must not be used; cl_http_client=>create_by_destinati| &&
+      |on must be used instead.\n21,Shared memory,SHOULD ,The use of ABAP IMPORT/EXPORT commands to/from memory should be limited and justified only after a detailed requirement analysis; alternate solutions| &&
+      | should also be studied.\n22,Shared memory,MUST NOT,Shared memory objects created using transaction SHMA must not be used.\n23,Shared memory,MUST NOT,Sensitive data must not be stored in a Parameter I| &&
+      |D; Parameter IDs use GET/SET commands to access data in global memory.\n24,Shared memory,MUST NOT,The Shared Memory Enabled flag must not be set for custom classes.\n25,Binary,MUST NOT,"Binary files (| &&
+      |jar, exe) must not be uploaded inside the content server."\n,,,| )
+    ( |=== Spool_Rules (1).csv ===| )
+    ( |S.No.,Rule,Tag,Rule Content\n1,Page header for spool list,MUST,A spool list must have a page header displayed on one single line by default.\n2,Page header for spool list,MUST,"The page header must co| &&
+      |ntain program name, program title, user, run date, run time, and page number."\n3,Page header for spool list,MUST,Page header information must be taken from SYST table only.\n4,Page header for spool l| &&
+      |ist,MUST,"Layout must be: Left = Program name, Middle = Program title, Right = User / Date / Hour / Page number."\n5,Page header for spool list,SHOULD ,"For ALV reports, a simplified header layout sho| &&
+      |uld be used."\n6,Default synthetic information,MUST,"The default synthetic report must be composed of three parts: type of run, input indicators, and output indicators."\n7,Default synthetic informati| &&
+      |on,MUST,"If the test-run flag is set, the line must be 'TEST RUN EXECUTION'; otherwise it must be 'REAL EXECUTION'."\n8,Default synthetic information,MUST,"For each input file, a line must dis| &&
+      |play the nature of object ('FILE'), complete file name, and number of lines in the file."\n9,Default synthetic information,MUST,One line must be created for each external object or action (output | &&
+      |file or batch-input).\n10,Default synthetic information,MUST,"Output lines must include nature of object ('FILE' or 'BI'), complete name, action description (e.g. CREATE/UPDATE/DELETE), and nu| &&
+      |mber of lines or number of transactions."\n11,Default list of error,MUST,The error or anomaly list must be generated as a spool list and displayed after the synthetic information section.\n12,Default | &&
+      |list of error,MUST,Each error must be displayed on one single line and grouped by error message.\n13,Default list of error,MUST,Each error line must start with a sequential error number followed by an| &&
+      | error message (standard BAPI message or specific validation message).\n14,Default list of error,MUST,"Each error line must include the line number in the file, the first 50 characters of the erroneou| &&
+      |s line, and other significant information required for error correction."\n15,Default report for no-selected data,SHOULD ,The selection screen must display a warning message 'No data selected' if | &&
+      |the user executes the report without selecting any data.\n16,Standard texts,MUST,All complex paragraphs must be documented in standard text (SO10) in English and identified in the form by standard tex| &&
+      |t ID.\n17,Standard texts,MUST,Standard texts must be identified and called in the program using their Standard Text ID.\n18,Standard texts,MUST NOT,"Short texts that describe a block or frame of frame| &&
+      | must not be included in standard text. Example: In form 'List of applicable publications', remarks about CMMs, SBs, SILs, TEBs are exceptions                                                      | &&
+      |           'REMARK:As CMMM's, CMMV's, SB's, SIL's, TEB's, are subject to permanent updating (each\nindividual CMM, SB, SIL, TEB, bear a different issue/revision date) these documents are n| &&
+      |ot part of\nthe LAP chart. For CMM's please refer to the CDS and./or CEL document and for CB's, SIL's, TEB's,\nto the respective index."| )
+    ( |=== Standard_Modification_Rules.csv ===| )
+    ( |S.No.,Rule,Tag,Rule\n1,"User-exit, enhancement, standard modification",MUST,"User-exits, enhancements, and BADIs must be implemented by SAP Operation."\n2,"User-exit, enhancement, standard modificatio| &&
+      |n",MUST,Standard modifications (with modification key) must be implemented by SAP Operation.\n3,"User-exit, enhancement, standard modification",MUST,Standard indexes must be implemented by SAP Operati| &&
+      |on.\n4,"User-exit, enhancement, standard modification",MUST,BADI must be evaluated first as the integration option.\n5,"User-exit, enhancement, standard modification",MUST,"If no suitable BADI exists,| &&
+      | a customer exit must be evaluated next."\n6,"User-exit, enhancement, standard modification",MUST,"If no BADI or customer exit exists, a standard include program must be evaluated for enhancement."\n7| &&
+      |,"User-exit, enhancement, standard modification",MUST,Events (based on modification object technology) must be evaluated as the last option.\n8,DB commit,MUST NOT,"Database COMMIT must not execute in | &&
+      |the middle of a SAP standard transaction (e.g., user exit, enhancement)."\n9,DB operation on standard table,MUST NOT,Data in SAP standard tables must not manipulated directly in custom programs.\n10,D| &&
+      |B operation on standard table,SHOULD ,"Standard functions, BAPIs, or data classes should be used to create, update, or delete standard SAP data."\n11,DB operation on standard table,SHOULD NOT,"Direct | &&
+      |database operations (UPDATE, DELETE, INSERT, MODIFY) should not be performed on SAP standard tables or tables from packages ZPR21 / ZZB160."\n12,DB operation on standard table,MUST,"When an exception | &&
+      |is required, it must be logged in table ZDCZZT94 and handled by SAP Operation."\n13,User exits,MUST NOT,Text enhancements must not be used.\n14,User exits,MUST NOT,FIELD-EXIT must not be used.\n15, Bu| &&
+      |siness Add-Ins,MUST,"When a project uses a BADI, its specific entry must be created in ZDCZZT20 before coding."\n16, Business Add-Ins,MUST,Each project must implement its logic in its own specific cla| &&
+      |ss.\n17, Business Add-Ins,MUST,Required check parameters must be evaluated at the beginning of each BADI method.\n18, Business Add-Ins,SHOULD ,Only BADI methods with significant parameters should be u| &&
+      |sed.\n19, Business Add-Ins,MUST,Only one implementation per Business Add-In must be activated at the same time.\n20, Business Add-Ins,MUST,"If the BADI does not provide the exception parameter CANCEL,| &&
+      | include ZPCZZI21 must be used."\n21, Business Add-Ins,MUST,"For each new functionality requested by a project, the ABAP code must be written in a project-specific class."\n22, Business Add-Ins,MUST,A| &&
+      | new project-specific class Z<MYCLASS> must be created and registered in table ZDCZZT20.\n23, Business Add-Ins,MUST,Class Z<MYCLASS> must be created using transaction SE24.\n24, Business Add-Ins,MUST,| &&
+      |The project-specific class Z<MYCLASS> must be automatically called via include ZPCZZI20 based on the entry in ZDCZZT20.| )
+    ).
+  " >>> END GENERATED KB LITERAL <<<
 
-  LOOP AT lt_dir_files INTO ls_dir_file.
-    CLEAR lt_csv_lines.
-    lv_csv_filename = ls_dir_file-filename. " FILE_TABLE-FILENAME is CHAR1024, GUI_UPLOAD wants STRING
-    CALL FUNCTION 'GUI_UPLOAD'
-      EXPORTING
-        filename            = lv_csv_filename
-        has_field_separator = ''
-      TABLES
-        data_tab            = lt_csv_lines
-      EXCEPTIONS
-        OTHERS              = 1.
-    IF sy-subrc <> 0.
-      CONTINUE.
-    ENDIF.
-
-    lv_kb_files_loaded = lv_kb_files_loaded + 1.
-    lv_kb_text = lv_kb_text && cl_abap_char_utilities=>newline &&
-                 '=== ' && ls_dir_file-filename && ' ===' && cl_abap_char_utilities=>newline.
-    LOOP AT lt_csv_lines INTO lv_csv_line.
-      lv_kb_text = lv_kb_text && lv_csv_line && cl_abap_char_utilities=>newline.
-    ENDLOOP.
+  DATA(lv_kb_files_loaded) = 9.
+  LOOP AT lt_kb_lines INTO lv_csv_line.
+    lv_kb_text = lv_kb_text && lv_csv_line && cl_abap_char_utilities=>newline.
   ENDLOOP.
-
-  " With no rules loaded, every chunk call would legitimately come back
-  " with zero findings ("KB is the only source of truth") no matter how
-  " bad the code is - that's indistinguishable from "code is fine" unless
-  " this is caught up front instead of silently burning API calls.
-  IF lv_kb_files_loaded = 0.
-    ev_message = |AI review aborted - no .csv rule files found in { iv_kb_dir }. | &&
-                 |Check P_KBDIR points to the folder holding the 9 GEM rule CSVs on this PC.|.
-    RETURN.
-  ENDIF.
 
   "=====================================================================
   " 3. System instruction - condensed from the Step 2 GEM. The hard-stop
