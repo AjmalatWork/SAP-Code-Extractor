@@ -628,6 +628,16 @@ FUNCTION zcr_ai_code_review.
     'A FINDINGS-ALREADY-REPORTED list may be supplied for this object - never repeat a ' &&
     'finding already in that list (same rule + same object + same line(s)). ' &&
     'If there is no violation, do not create a finding - an empty result is a valid result. ' &&
+    'RULE SELECTION: always evaluate coding_rules and general_rules against every chunk. ' &&
+    'Load the other rule files only when the code actually contains what they cover - do ' &&
+    'not apply a rule file to code that has nothing to do with it. ' &&
+    'performance: SELECT, INSERT, UPDATE, DELETE, MODIFY, JOIN, FOR ALL ENTRIES, Open SQL, CDS consumption. ' &&
+    'security_rules: AUTHORITY-CHECK, RFC, HTTP calls, external interfaces, user authorization, security-sensitive operations. ' &&
+    'spool_rules: WRITE, NEW-PAGE, spool, SmartForms, SAPscript. ' &&
+    'naming_conventions: variables, constants, classes, interfaces, methods, structures, internal tables, executable programs, reports, includes, event blocks. ' &&
+    'obsolescence_rules: OCCURS, HEADER LINE, TABLES, obsolete Open SQL, or other syntax the Knowledge Base explicitly covers as obsolete. ' &&
+    'architecture_design_rules: classes, interfaces, function modules, BAdIs, enhancements, other architecture-related objects. ' &&
+    'standard_modification_rules: user exits, implicit enhancements, explicit enhancements, SAP standard modifications. ' &&
     'Respond with a JSON array ONLY, no prose, no markdown fences. Each array element is an ' &&
     'object with exactly these keys: ruleFile, ruleSerial, ruleHeading, ruleTag, objectName, ' &&
     'lineNos, remarks, fix. Every value is a plain string. If there are no findings for this ' &&
