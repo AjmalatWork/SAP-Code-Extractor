@@ -146,6 +146,19 @@ FORM main.
   ELSEIF rb_func = 'X'.
     PERFORM run_func_alv_flow.
   ENDIF.
+
+  " GV_FULL_PATH/GT_OUTPUT are set by whichever flow ran above - only
+  " proceed if the ALV review screen (9000) wasn't cancelled there.
+  CHECK gv_multi_cancelled = abap_false.
+
+  IF p_airev = abap_true.
+    " Skip the extract download entirely and review GT_OUTPUT directly -
+    " P_AIREV means "I only want the AI review", not "download, then
+    " also review".
+    PERFORM run_ai_code_review.
+  ELSE.
+    PERFORM download_output_file.
+  ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1295,20 +1308,17 @@ FORM download_output_file.
     WRITE: / 'File successfully downloaded to:', gv_full_path.
   ELSE.
     WRITE: / 'Error downloading file. Check if the file path is valid.'.
-    RETURN.
-  ENDIF.
-
-  IF p_airev = abap_true.
-    PERFORM run_ai_code_review.
   ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *&      Form  RUN_AI_CODE_REVIEW
 *&---------------------------------------------------------------------*
-*       Hands the just-written extract (still in GT_OUTPUT) to the AI
-*       review FM. GV_FULL_PATH is "<folder>\CODE_EXTRACT_..._<METHOD>.TXT" -
-*       the review file goes next to it with the same base name.
+*       Hands GT_OUTPUT straight to the AI review FM - no extract file
+*       is written to disk when this runs (see MAIN: P_AIREV = 'X' skips
+*       DOWNLOAD_OUTPUT_FILE entirely). GV_FULL_PATH is still set to
+*       "<folder>\CODE_EXTRACT_..._<METHOD>.TXT" by DETERMINE_ALV_OUTPUT_PATH
+*       regardless, so the review file is named after it either way.
 *&---------------------------------------------------------------------*
 FORM run_ai_code_review.
   DATA: lt_lines       TYPE string_table,
@@ -1376,8 +1386,6 @@ FORM run_multi_tr_flow.
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
 
-  CHECK gv_multi_cancelled = abap_false.
-  PERFORM download_output_file.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1409,8 +1417,6 @@ FORM run_prog_alv_flow.
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
 
-  CHECK gv_multi_cancelled = abap_false.
-  PERFORM download_output_file.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1470,8 +1476,6 @@ FORM run_class_alv_flow.
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
 
-  CHECK gv_multi_cancelled = abap_false.
-  PERFORM download_output_file.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -1543,8 +1547,6 @@ FORM run_func_alv_flow.
   CLEAR gv_multi_cancelled.
   CALL SCREEN 9000.
 
-  CHECK gv_multi_cancelled = abap_false.
-  PERFORM download_output_file.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
