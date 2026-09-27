@@ -8,7 +8,7 @@ REPORT zcr_aura_code_extractor_v2.
 * is embedded there, not read from a folder.
 
 INCLUDE zcr_aura_code_extractor_top.
-INCLUDE zcr_aura_code_extractor_sel_v2.
+INCLUDE zcr_aura_code_extractor_sel.
 
 *&---------------------------------------------------------------------*
 *& Screen / F4 Events
