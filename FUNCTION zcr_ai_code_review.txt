@@ -3,16 +3,15 @@ FUNCTION zcr_ai_code_review.
 *"*"Local Interface:
 *"  IMPORTING
 *"     REFERENCE(IT_OUTPUT) TYPE  STRING_TABLE
-*"     REFERENCE(IV_KB_DIR) TYPE  STRING
 *"     REFERENCE(IV_REVIEW_PATH) TYPE  STRING
 *"  EXPORTING
 *"     REFERENCE(EV_MESSAGE) TYPE  STRING
 *"----------------------------------------------------------------------
 * Orchestrates the direct-API AI code review, per the Step 2 GEM
 * instructions (GEM\Step 2 - Code Review GEM (1).md), against the rule
-* knowledge base in IV_KB_DIR (GEM\*.csv). Called once, at the end of
-* ZCR_AURA_CODE_EXTRACTOR_V2, with the extract file's lines already in
-* memory (IT_OUTPUT) - no re-read from disk.
+* knowledge base (GEM\*.csv, embedded below - see section 2). Called
+* once, at the end of ZCR_AURA_CODE_EXTRACTOR_V2, with the extract
+* file's lines already in memory (IT_OUTPUT) - no re-read from disk.
 *
 * IT_OUTPUT is the flat extract, one or more objects, each shaped:
 *   =========================================
@@ -118,10 +117,8 @@ FUNCTION zcr_ai_code_review.
 
   "=====================================================================
   " 2. Rule knowledge base - the 9 GEM CSVs, embedded as literals below
-  "    instead of read from IV_KB_DIR at runtime. GUI_UPLOAD kept failing
-  "    (SY-SUBRC = 1) against the frontend folder, so this sidesteps that
-  "    entirely for now. IV_KB_DIR is unused as a result - kept on the
-  "    interface in case file-based loading comes back later.
+  "    instead of read from disk at runtime (GUI_UPLOAD kept failing with
+  "    SY-SUBRC = 1 against the frontend folder).
   "    One header entry ("=== filename ===") per CSV, then one table
   "    entry per physical line of that CSV - LT_KB_LINES therefore reads
   "    the same as the source .csv files, one line each. The loop below

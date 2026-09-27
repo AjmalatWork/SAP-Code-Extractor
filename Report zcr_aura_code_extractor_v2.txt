@@ -4,8 +4,9 @@ REPORT zcr_aura_code_extractor_v2.
 * only adds an optional AI code review step (direct Gemini API call,
 * Step 2 GEM rules) that runs after the extract file is written, so the
 * original report and its includes stay untouched. See block B4 on the
-* selection screen (P_AIREV / P_KBDIR) and the end of DOWNLOAD_OUTPUT_FILE
-* below. New logic lives in FUNCTION ZCR_AI_CODE_REVIEW.
+* selection screen (P_AIREV) and MAIN. New logic lives in FUNCTION
+* ZCR_AI_CODE_REVIEW - its rule knowledge base is embedded there, not
+* read from a folder, so there is no KB-folder parameter here.
 
 INCLUDE zcr_aura_code_extractor_top.
 INCLUDE zcr_aura_code_extractor_sel_v2.
@@ -18,9 +19,6 @@ AT SELECTION-SCREEN OUTPUT.
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
   PERFORM f4_output_folder CHANGING p_file.
-
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_kbdir.
-  PERFORM f4_output_folder CHANGING p_kbdir.
 
 *&---------------------------------------------------------------------*
 *& Program flow
@@ -1342,7 +1340,6 @@ FORM run_ai_code_review.
   CALL FUNCTION 'ZCR_AI_CODE_REVIEW'
     EXPORTING
       it_output      = lt_lines
-      iv_kb_dir      = p_kbdir
       iv_review_path = lv_review_path
     IMPORTING
       ev_message     = lv_message.
