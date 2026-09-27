@@ -119,11 +119,12 @@ FUNCTION zcr_ai_code_review.
   "=====================================================================
   " 2. Load the rule knowledge base (all CSVs in IV_KB_DIR) once
   "=====================================================================
-  DATA: lt_dir_files TYPE filetable,
-        ls_dir_file  TYPE file_table,
-        lv_kb_count  TYPE i,
-        lt_csv_lines TYPE string_table,
-        lv_csv_line  TYPE string.
+  DATA: lt_dir_files    TYPE filetable,
+        ls_dir_file     TYPE file_table,
+        lv_kb_count     TYPE i,
+        lv_csv_filename TYPE string,
+        lt_csv_lines    TYPE string_table,
+        lv_csv_line     TYPE string.
 
   CALL METHOD cl_gui_frontend_services=>directory_list_files
     EXPORTING
@@ -137,9 +138,10 @@ FUNCTION zcr_ai_code_review.
 
   LOOP AT lt_dir_files INTO ls_dir_file.
     CLEAR lt_csv_lines.
+    lv_csv_filename = ls_dir_file-filename. " FILE_TABLE-FILENAME is CHAR1024, GUI_UPLOAD wants STRING
     CALL FUNCTION 'GUI_UPLOAD'
       EXPORTING
-        filename            = ls_dir_file-filename
+        filename            = lv_csv_filename
         has_field_separator = ''
       TABLES
         data_tab            = lt_csv_lines
