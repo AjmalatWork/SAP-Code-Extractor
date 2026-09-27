@@ -127,10 +127,10 @@ FUNCTION zcr_ai_review_chunk.
   "=============================
   DATA: lr_data TYPE REF TO data.
   FIELD-SYMBOLS: <data>        TYPE any,
-                 <candidates>  TYPE ANY TABLE,
+                 <candidates>  TYPE INDEX TABLE,
                  <candidate>   TYPE any,
                  <content>     TYPE any,
-                 <parts>       TYPE ANY TABLE,
+                 <parts>       TYPE INDEX TABLE,
                  <part>        TYPE any,
                  <text>        TYPE any.
 
