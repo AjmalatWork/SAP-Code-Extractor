@@ -87,3 +87,40 @@ Notes:
   ZCR_GET_OBJECT_SIGNATURE. The calling FM (ZCR_GET_DEPENDENCY_OBJ) serializes
   with /ui2/cl_json=>serialize( compress = abap_true ), which drops blank/initial
   fields from the JSON output, so each dependency's JSON only shows relevant keys.
+
+DDIC objects for ZCR_AI_CODE_REVIEW / ZCR_AI_REVIEW_CHUNK (direct-API AI review, branch DIRECT-API-CODE-REVIEW)
+===========================================================================
+STATUS: not yet created - needed before these two FMs will activate.
+
+8) Structure ZCR_TS_AI_FINDING  ("one code review finding")
+   Short text: AI Code Review Finding (Code Extractor)
+
+   Component      Typing Method   Component Type
+   ---------      -------------   --------------
+   RULE_FILE      Types           Z_STRING   " which rule CSV the finding came from
+   RULE_SERIAL    Types           Z_STRING   " S.No. column in that CSV
+   RULE_HEADING   Types           Z_STRING   " Rule column
+   RULE_TAG       Types           Z_STRING   " MUST / MUST NOT / SHOULD / SHOULD NOT, as given by the rule
+   OBJECT_NAME    Types           Z_STRING   " set by ZCR_AI_CODE_REVIEW, not trusted from the model
+   LINE_NOS       Types           Z_STRING   " e.g. "42" or "42-47" or "42, 58"
+   REMARKS        Types           Z_STRING   " violation explanation
+   FIX            Types           Z_STRING   " recommended fix
+   REVIEW_CHUNK   Types           Z_STRING   " "Chunk N" - set by ZCR_AI_CODE_REVIEW, not the model
+
+9) Table type ZCR_TT_AI_FINDING
+   Short text: AI Code Review Finding Table (Code Extractor)
+   Line type: ZCR_TS_AI_FINDING
+   Kind: Standard Table
+   (No key needed - APPEND/LOOP/MODIFY ... INDEX only, same as ZCR_TT_DEP_REF.)
+
+Notes:
+- The model is asked for 8 JSON keys (ruleFile, ruleSerial, ruleHeading, ruleTag,
+  objectName, lineNos, remarks, fix) via /ui2/cl_json=>deserialize( pretty_name =
+  camel_case ) into ZCR_TT_AI_FINDING directly. OBJECT_NAME and REVIEW_CHUNK are
+  then overwritten in ABAP regardless of what the model returned, since those two
+  are known authoritatively by the caller.
+- The TSV output (ZCR_AI_CODE_REVIEW, section 5) has 4 more columns than this
+  structure - Remediation Status, Developer Comments, Target Completion Date,
+  Reviewer Sign-Off - left blank for manual entry later. They're written straight
+  into the TSV, not modeled as DDIC fields, since nothing ever populates them
+  programmatically.

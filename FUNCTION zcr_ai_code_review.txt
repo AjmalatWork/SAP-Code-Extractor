@@ -1,0 +1,331 @@
+FUNCTION zcr_ai_code_review.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(IT_OUTPUT) TYPE  STRING_TABLE
+*"     REFERENCE(IV_KB_DIR) TYPE  STRING
+*"     REFERENCE(IV_REVIEW_PATH) TYPE  STRING
+*"  EXPORTING
+*"     REFERENCE(EV_MESSAGE) TYPE  STRING
+*"----------------------------------------------------------------------
+* Orchestrates the direct-API AI code review, per the Step 2 GEM
+* instructions (GEM\Step 2 - Code Review GEM (1).md), against the rule
+* knowledge base in IV_KB_DIR (GEM\*.csv). Called once, at the end of
+* ZCR_AURA_CODE_EXTRACTOR_V2, with the extract file's lines already in
+* memory (IT_OUTPUT) - no re-read from disk.
+*
+* IT_OUTPUT is the flat extract, one or more objects, each shaped:
+*   =========================================
+*   Object: <name> <type>[ - <note>]
+*   Dependency JSON: {...}
+*   DDIC JSON: {...}                              (optional)
+*   LINE <n>: + <code>   / - <code>  / = <code>    (repeated)
+* An object with only a note (nothing changed / extraction skipped) has
+* no LINE rows and is skipped - nothing to review.
+*
+* Per object: code lines are split into 500-line chunks (Step 2 GEM
+* section 6) and reviewed one chunk at a time, IN ORDER, because each
+* chunk's prompt carries the findings already reported for that object
+* so the model can de-dup (section 13) - chunks of the SAME object
+* can't run in parallel. Chunks of DIFFERENT objects could, but this FM
+* calls ZCR_AI_REVIEW_CHUNK synchronously: STARTING NEW TASK needs a
+* FORM callback, and FORMs can't live inside a FUNCTION.
+*
+* The rule knowledge base (9 CSVs, ~35KB total) is small next to the
+* code, so it's sent inline on every chunk call rather than through
+* Gemini's context-cache API - simpler, and each call is stateless
+* regardless. Dependency/DDIC JSON is only sent on an object's first
+* chunk, since it doesn't change chunk to chunk and is unrelated to
+* de-dup.
+*
+* Output: one TSV (tab-separated, not Excel) at IV_REVIEW_PATH, header
+* row + one row per finding, columns per Step 2 GEM section 18. Of the
+* 13 columns, 9 come from the model (Rule File Name, Rule Serial
+* Number, Rule Name/Heading, Rule Tag, Object impacted, Line Number(s),
+* Error/Violation Remarks, Recommended Fix, Review Chunk); the other 4
+* (Remediation Status, Developer Comments, Target Completion Date,
+* Reviewer Sign-Off) are left blank for manual entry later - they still
+* get a column, just no value yet.
+
+  "=============================
+  " Local types
+  "=============================
+  TYPES: BEGIN OF ty_object,
+           name      TYPE string,
+           dep_json   TYPE string,
+           ddic_json  TYPE string,
+           has_code   TYPE abap_bool,
+           code_lines TYPE string_table,
+         END OF ty_object,
+         tt_object TYPE STANDARD TABLE OF ty_object WITH EMPTY KEY.
+
+  DATA: lt_objects       TYPE tt_object,
+        ls_object        TYPE ty_object,
+        lv_kb_text       TYPE string,
+        lv_sys_instruct  TYPE string,
+        lt_all_findings  TYPE zcr_tt_ai_finding,
+        lt_obj_findings  TYPE zcr_tt_ai_finding,
+        lt_tsv           TYPE string_table,
+        lv_line          TYPE string,
+        lv_objects_done  TYPE i,
+        lv_chunks_done   TYPE i,
+        lv_findings_done TYPE i,
+        lv_errors        TYPE i.
+
+  CONSTANTS: lc_sep       TYPE string VALUE '=========================================',
+             lc_chunk_size TYPE i VALUE 500,
+             lc_tab       TYPE c LENGTH 1 VALUE cl_abap_char_utilities=>horizontal_tab.
+
+  CLEAR ev_message.
+
+  "=====================================================================
+  " 1. Parse IT_OUTPUT into one entry per object
+  "=====================================================================
+  LOOP AT it_output INTO lv_line.
+    IF lv_line = lc_sep.
+      IF ls_object-name IS NOT INITIAL AND ls_object-has_code = abap_true.
+        APPEND ls_object TO lt_objects.
+      ENDIF.
+      CLEAR ls_object.
+
+    ELSEIF lv_line CP 'Object:*'.
+      ls_object-name = lv_line.
+      SHIFT ls_object-name LEFT BY 8 PLACES. " strip 'Object: '
+
+    ELSEIF lv_line CP 'Dependency JSON:*'.
+      ls_object-dep_json = lv_line.
+      SHIFT ls_object-dep_json LEFT BY 17 PLACES.
+
+    ELSEIF lv_line CP 'DDIC JSON:*'.
+      ls_object-ddic_json = lv_line.
+      SHIFT ls_object-ddic_json LEFT BY 11 PLACES.
+
+    ELSEIF lv_line CP 'LINE *'.
+      APPEND lv_line TO ls_object-code_lines.
+      ls_object-has_code = abap_true.
+    ENDIF.
+  ENDLOOP.
+
+  " Flush the last object - it never hits another separator line.
+  IF ls_object-name IS NOT INITIAL AND ls_object-has_code = abap_true.
+    APPEND ls_object TO lt_objects.
+  ENDIF.
+
+  IF lt_objects IS INITIAL.
+    ev_message = 'AI review skipped - no reviewable code found in the extract.'.
+    RETURN.
+  ENDIF.
+
+  "=====================================================================
+  " 2. Load the rule knowledge base (all CSVs in IV_KB_DIR) once
+  "=====================================================================
+  DATA: lt_dir_files TYPE filetable,
+        ls_dir_file  TYPE file_table,
+        lv_kb_count  TYPE i,
+        lt_csv_lines TYPE string_table,
+        lv_csv_line  TYPE string.
+
+  CALL METHOD cl_gui_frontend_services=>directory_list_files
+    EXPORTING
+      directory   = iv_kb_dir
+      filter      = '*.csv'
+    CHANGING
+      file_table  = lt_dir_files
+      count       = lv_kb_count
+    EXCEPTIONS
+      OTHERS      = 4.
+
+  LOOP AT lt_dir_files INTO ls_dir_file.
+    CLEAR lt_csv_lines.
+    CALL FUNCTION 'GUI_UPLOAD'
+      EXPORTING
+        filename            = ls_dir_file-filename
+        has_field_separator = ''
+      TABLES
+        data_tab            = lt_csv_lines
+      EXCEPTIONS
+        OTHERS              = 1.
+    IF sy-subrc <> 0.
+      CONTINUE.
+    ENDIF.
+
+    lv_kb_text = lv_kb_text && cl_abap_char_utilities=>newline &&
+                 '=== ' && ls_dir_file-filename && ' ===' && cl_abap_char_utilities=>newline.
+    LOOP AT lt_csv_lines INTO lv_csv_line.
+      lv_kb_text = lv_kb_text && lv_csv_line && cl_abap_char_utilities=>newline.
+    ENDLOOP.
+  ENDLOOP.
+
+  "=====================================================================
+  " 3. System instruction - condensed from the Step 2 GEM. The hard-stop
+  "    / "type CONTINUE" / cumulative-conversation-memory parts of that
+  "    GEM are chat-UI behaviour and don't apply here: this FM drives the
+  "    chunk loop itself, and cumulative findings are kept in ABAP
+  "    (LT_OBJ_FINDINGS), not in model memory.
+  "=====================================================================
+  lv_sys_instruct =
+    'You are an expert SAP ABAP Code Reviewer. Review the supplied ABAP code strictly ' &&
+    'against the supplied Knowledge Base rules. The Knowledge Base is the ONLY source of ' &&
+    'truth for findings - do not invent rules, do not report anything the Knowledge Base ' &&
+    'does not support, and never change the severity (Rule Tag) a rule defines. ' &&
+    'Each code line is given as "LINE n : <flag> <code>", where + is a newly added line, ' &&
+    '- is a deleted line shown only for context (never a finding target), and = is an ' &&
+    'unchanged line. Only evaluate + and = lines. ' &&
+    'A FINDINGS-ALREADY-REPORTED list may be supplied for this object - never repeat a ' &&
+    'finding already in that list (same rule + same object + same line(s)). ' &&
+    'If there is no violation, do not create a finding - an empty result is a valid result. ' &&
+    'Respond with a JSON array ONLY, no prose, no markdown fences. Each array element is an ' &&
+    'object with exactly these keys: ruleFile, ruleSerial, ruleHeading, ruleTag, objectName, ' &&
+    'lineNos, remarks, fix. Every value is a plain string. If there are no findings for this ' &&
+    'chunk, respond with an empty array: [].'.
+
+  "=====================================================================
+  " 4. Per object: 500-line chunks, in order, cumulative de-dup context
+  "=====================================================================
+  LOOP AT lt_objects INTO ls_object.
+    CLEAR lt_obj_findings.
+
+    DATA: lv_total_lines TYPE i,
+          lv_chunk_no    TYPE i,
+          lv_from        TYPE i,
+          lv_to          TYPE i,
+          lv_prompt      TYPE string,
+          lv_prior_json  TYPE string,
+          lt_chunk_lines TYPE string_table,
+          lt_findings    TYPE zcr_tt_ai_finding,
+          ls_finding     TYPE zcr_ts_ai_finding,
+          lv_raw         TYPE string.
+
+    lv_total_lines = lines( ls_object-code_lines ).
+    lv_chunk_no    = 0.
+    lv_from        = 1.
+
+    WHILE lv_from <= lv_total_lines.
+      lv_chunk_no = lv_chunk_no + 1.
+      lv_to = lv_from + lc_chunk_size - 1.
+      IF lv_to > lv_total_lines.
+        lv_to = lv_total_lines.
+      ENDIF.
+
+      CLEAR lt_chunk_lines.
+      DATA(lv_idx) = lv_from.
+      WHILE lv_idx <= lv_to.
+        READ TABLE ls_object-code_lines INDEX lv_idx INTO lv_csv_line.
+        APPEND lv_csv_line TO lt_chunk_lines.
+        lv_idx = lv_idx + 1.
+      ENDWHILE.
+
+      lv_prior_json = /ui2/cl_json=>serialize(
+          data        = lt_obj_findings
+          pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+
+      lv_prompt =
+        'KNOWLEDGE BASE:' && cl_abap_char_utilities=>newline && lv_kb_text &&
+        cl_abap_char_utilities=>newline && cl_abap_char_utilities=>newline &&
+        'OBJECT: ' && ls_object-name && cl_abap_char_utilities=>newline.
+
+      IF lv_chunk_no = 1.
+        IF ls_object-dep_json IS NOT INITIAL.
+          lv_prompt = lv_prompt && 'DEPENDENCY JSON: ' && ls_object-dep_json && cl_abap_char_utilities=>newline.
+        ENDIF.
+        IF ls_object-ddic_json IS NOT INITIAL.
+          lv_prompt = lv_prompt && 'DDIC JSON: ' && ls_object-ddic_json && cl_abap_char_utilities=>newline.
+        ENDIF.
+      ENDIF.
+
+      lv_prompt = lv_prompt &&
+        'REVIEW CHUNK: ' && lv_chunk_no && cl_abap_char_utilities=>newline &&
+        'FINDINGS ALREADY REPORTED FOR THIS OBJECT (do not duplicate):' &&
+        cl_abap_char_utilities=>newline && lv_prior_json && cl_abap_char_utilities=>newline &&
+        cl_abap_char_utilities=>newline && 'CODE:' && cl_abap_char_utilities=>newline.
+
+      LOOP AT lt_chunk_lines INTO lv_csv_line.
+        lv_prompt = lv_prompt && lv_csv_line && cl_abap_char_utilities=>newline.
+      ENDLOOP.
+
+      CLEAR lt_findings.
+      CALL FUNCTION 'ZCR_AI_REVIEW_CHUNK'
+        EXPORTING
+          iv_system_instruct = lv_sys_instruct
+          iv_prompt          = lv_prompt
+        IMPORTING
+          et_findings        = lt_findings
+          ev_raw_text        = lv_raw
+        EXCEPTIONS
+          http_error         = 1
+          parse_error        = 2
+          OTHERS             = 3.
+
+      lv_chunks_done = lv_chunks_done + 1.
+
+      IF sy-subrc <> 0.
+        lv_errors = lv_errors + 1.
+      ELSE.
+        LOOP AT lt_findings INTO ls_finding.
+          " OBJECT_NAME and REVIEW_CHUNK are authoritative from this FM,
+          " not the model - overwrite whatever came back.
+          ls_finding-object_name  = ls_object-name.
+          ls_finding-review_chunk = |Chunk { lv_chunk_no }|.
+          MODIFY lt_findings FROM ls_finding INDEX sy-tabix.
+        ENDLOOP.
+
+        APPEND LINES OF lt_findings TO lt_obj_findings.
+        APPEND LINES OF lt_findings TO lt_all_findings.
+        lv_findings_done = lv_findings_done + lines( lt_findings ).
+      ENDIF.
+
+      lv_from = lv_to + 1.
+    ENDWHILE.
+
+    lv_objects_done = lv_objects_done + 1.
+  ENDLOOP.
+
+  "=====================================================================
+  " 5. Write the TSV - header + 9 AI columns + 4 blank manual columns
+  "=====================================================================
+  APPEND |Rule File Name{ lc_tab }Rule Serial Number{ lc_tab }Rule Name / Heading{ lc_tab }| &&
+         |Rule Tag{ lc_tab }Object Impacted{ lc_tab }Line Number(s){ lc_tab }| &&
+         |Error / Violation Remarks{ lc_tab }Recommended Fix{ lc_tab }Remediation Status{ lc_tab }| &&
+         |Developer Comments{ lc_tab }Target Completion Date{ lc_tab }Reviewer Sign-Off{ lc_tab }| &&
+         |Review Chunk| TO lt_tsv.
+
+  LOOP AT lt_all_findings INTO ls_finding.
+    " A tab or newline inside a field would shift the row's columns -
+    " flatten both to a single space before writing.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-rule_file    WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-rule_serial  WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-rule_heading WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-rule_tag     WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-object_name  WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-line_nos     WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-remarks      WITH ' '.
+    REPLACE ALL OCCURRENCES OF lc_tab IN ls_finding-fix          WITH ' '.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN ls_finding-remarks WITH ' '.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN ls_finding-fix     WITH ' '.
+
+    APPEND |{ ls_finding-rule_file }{ lc_tab }{ ls_finding-rule_serial }{ lc_tab }| &&
+           |{ ls_finding-rule_heading }{ lc_tab }{ ls_finding-rule_tag }{ lc_tab }| &&
+           |{ ls_finding-object_name }{ lc_tab }{ ls_finding-line_nos }{ lc_tab }| &&
+           |{ ls_finding-remarks }{ lc_tab }{ ls_finding-fix }{ lc_tab }{ lc_tab }| &&
+           |{ lc_tab }{ lc_tab }{ lc_tab }{ ls_finding-review_chunk }| TO lt_tsv.
+  ENDLOOP.
+
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+      filename         = iv_review_path
+      filetype         = 'ASC'
+    TABLES
+      data_tab         = lt_tsv
+    EXCEPTIONS
+      file_write_error = 1
+      OTHERS           = 2.
+
+  IF sy-subrc = 0.
+    DATA(lv_error_note) = COND string( WHEN lv_errors > 0 THEN |, { lv_errors } chunk(s) failed| ELSE '' ).
+    ev_message = |AI review done - { lv_objects_done } object(s), { lv_chunks_done } chunk(s), | &&
+                 |{ lv_findings_done } finding(s){ lv_error_note }. Written to { iv_review_path }|.
+  ELSE.
+    ev_message = |AI review finished but the TSV could not be written to { iv_review_path }|.
+  ENDIF.
+
+ENDFUNCTION.

@@ -1,0 +1,179 @@
+FUNCTION zcr_ai_review_chunk.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(IV_SYSTEM_INSTRUCT) TYPE  STRING
+*"     REFERENCE(IV_PROMPT) TYPE  STRING
+*"  EXPORTING
+*"     REFERENCE(ET_FINDINGS) TYPE  ZCR_TT_AI_FINDING
+*"     REFERENCE(EV_RAW_TEXT) TYPE  STRING
+*"  EXCEPTIONS
+*"      HTTP_ERROR
+*"      PARSE_ERROR
+*"----------------------------------------------------------------------
+* One Gemini generateContent call for one review chunk. IV_PROMPT already
+* holds the rule knowledge base, the object's dependency/DDIC JSON (first
+* chunk of an object only - see ZCR_AI_CODE_REVIEW), the findings already
+* reported for this object (for de-dup), and the chunk's own code lines.
+*
+* The model is asked to return a JSON array of findings only (no prose,
+* no markdown fences) via GENERATION_CONFIG-RESPONSE_MIME_TYPE, so
+* ET_FINDINGS can be built directly off the response body. EV_RAW_TEXT
+* is always filled, even on PARSE_ERROR, so the caller can log what came
+* back instead of silently losing a chunk's review.
+*
+* Caller passes one HTTP call at a time - no STARTING NEW TASK here.
+* This is a plain FUNCTION (no nested FORMs allowed), and the async
+* pattern needs a FORM callback in the calling program, which would
+* break the "one FM to call" design ZCR_AI_CODE_REVIEW is built around.
+
+  "=============================
+  " Payload structure (Gemini REST body)
+  "=============================
+  TYPES: BEGIN OF ty_part,
+           text TYPE string,
+         END OF ty_part,
+         tt_parts TYPE STANDARD TABLE OF ty_part WITH EMPTY KEY.
+
+  TYPES: BEGIN OF ty_content,
+           parts TYPE tt_parts,
+         END OF ty_content,
+         tt_contents TYPE STANDARD TABLE OF ty_content WITH EMPTY KEY.
+
+  TYPES: BEGIN OF ty_gen_config,
+           temperature       TYPE f,
+           response_mime_type TYPE string,
+         END OF ty_gen_config.
+
+  TYPES: BEGIN OF ty_system_instruction,
+           parts TYPE tt_parts,
+         END OF ty_system_instruction.
+
+  TYPES: BEGIN OF ty_gemini_payload,
+           system_instruction TYPE ty_system_instruction,
+           contents           TYPE tt_contents,
+           generation_config  TYPE ty_gen_config,
+         END OF ty_gemini_payload.
+
+  DATA: ls_payload   TYPE ty_gemini_payload,
+        lv_payload   TYPE string,
+        lv_url       TYPE string,
+        lv_response  TYPE string,
+        lv_code      TYPE i,
+        lo_client    TYPE REF TO if_http_client.
+
+  CONSTANTS: lc_api_key TYPE string VALUE '' ##NO_TEXT, "TODO: fill in / read from a secure store
+             lc_model   TYPE string VALUE 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'.
+
+  CLEAR: et_findings, ev_raw_text.
+
+  "=============================
+  " Build request body
+  "=============================
+  ls_payload-system_instruction-parts = VALUE #( ( text = iv_system_instruct ) ).
+  ls_payload-contents = VALUE #( ( parts = VALUE #( ( text = iv_prompt ) ) ) ).
+  ls_payload-generation_config-temperature        = '0.0'.
+  ls_payload-generation_config-response_mime_type = 'application/json'.
+
+  lv_payload = /ui2/cl_json=>serialize(
+      data        = ls_payload
+      pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+
+  "=============================
+  " Send / receive
+  "=============================
+  lv_url = lc_model && '?key=' && lc_api_key.
+
+  cl_http_client=>create_by_url(
+    EXPORTING
+      url    = lv_url
+    IMPORTING
+      client = lo_client
+    EXCEPTIONS
+      OTHERS = 1 ).
+  IF sy-subrc <> 0.
+    RAISE http_error.
+  ENDIF.
+
+  lo_client->request->set_header_field( name = '~request_method' value = 'POST' ).
+  lo_client->request->set_content_type( content_type = 'application/json; charset=utf-8' ).
+  lo_client->request->set_cdata( lv_payload ).
+
+  lo_client->send( EXCEPTIONS OTHERS = 1 ).
+  IF sy-subrc <> 0.
+    lo_client->close( ).
+    RAISE http_error.
+  ENDIF.
+
+  lo_client->receive( EXCEPTIONS OTHERS = 1 ).
+  IF sy-subrc <> 0.
+    lo_client->close( ).
+    RAISE http_error.
+  ENDIF.
+
+  lo_client->response->get_status( IMPORTING code = lv_code ).
+  lv_response = lo_client->response->get_cdata( ).
+  lo_client->close( ).
+
+  IF lv_code <> 200.
+    ev_raw_text = lv_response.
+    RAISE http_error.
+  ENDIF.
+
+  "=============================
+  " Pull candidates[0].content.parts[0].text out of the envelope -
+  " that text is itself the findings JSON array (RESPONSE_MIME_TYPE
+  " asked Gemini to make it so).
+  "=============================
+  DATA: lr_data TYPE REF TO data.
+  FIELD-SYMBOLS: <data>        TYPE any,
+                 <candidates>  TYPE ANY TABLE,
+                 <candidate>   TYPE any,
+                 <content>     TYPE any,
+                 <parts>       TYPE ANY TABLE,
+                 <part>        TYPE any,
+                 <text>        TYPE any.
+
+  /ui2/cl_json=>deserialize(
+    EXPORTING
+      json        = lv_response
+      pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+    CHANGING
+      data        = lr_data ).
+
+  TRY.
+      ASSIGN lr_data->* TO <data>.
+      ASSIGN COMPONENT 'CANDIDATES' OF STRUCTURE <data> TO FIELD-SYMBOL(<f_candidates>).
+      ASSIGN <f_candidates>->* TO <candidates>.
+      READ TABLE <candidates> ASSIGNING FIELD-SYMBOL(<f_candidate>) INDEX 1.
+      ASSIGN <f_candidate>->* TO <candidate>.
+      ASSIGN COMPONENT 'CONTENT' OF STRUCTURE <candidate> TO FIELD-SYMBOL(<f_content>).
+      ASSIGN <f_content>->* TO <content>.
+      ASSIGN COMPONENT 'PARTS' OF STRUCTURE <content> TO FIELD-SYMBOL(<f_parts>).
+      ASSIGN <f_parts>->* TO <parts>.
+      READ TABLE <parts> ASSIGNING FIELD-SYMBOL(<f_part>) INDEX 1.
+      ASSIGN <f_part>->* TO <part>.
+      ASSIGN COMPONENT 'TEXT' OF STRUCTURE <part> TO FIELD-SYMBOL(<f_text>).
+      ASSIGN <f_text>->* TO <text>.
+      ev_raw_text = <text>.
+    CATCH cx_root.
+      ev_raw_text = lv_response.
+      RAISE parse_error.
+  ENDTRY.
+
+  "=============================
+  " EV_RAW_TEXT is now the findings JSON array on its own - deserialize
+  " straight into ET_FINDINGS.
+  "=============================
+  TRY.
+      /ui2/cl_json=>deserialize(
+        EXPORTING
+          json        = ev_raw_text
+          pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+        CHANGING
+          data        = et_findings ).
+    CATCH cx_root.
+      RAISE parse_error.
+  ENDTRY.
+
+ENDFUNCTION.
